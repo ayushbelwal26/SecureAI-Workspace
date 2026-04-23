@@ -1,0 +1,508 @@
+'use client';
+
+import { useState, useRef } from 'react';
+
+/* ─────────────────────────────────────────── scan patterns ── */
+// All 7 OutputScanner patterns + 4 file-specific extras
+const PATTERNS = [
+  { name: 'Google API Key',    regex: /AIza[0-9A-Za-z\-_]{10,}/g,                                            replacement: '[GOOGLE_API_KEY_REDACTED]'  },
+  { name: 'Password',          regex: /password[\s:=]+\S+/gi,                                                 replacement: '[PASSWORD_REDACTED]'         },
+  { name: 'Credit Card',       regex: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,                        replacement: '[CARD_NUMBER_REDACTED]'       },
+  { name: 'SSN',               regex: /\b\d{3}-\d{2}-\d{4}\b/g,                                              replacement: '[SSN_REDACTED]'               },
+  { name: 'Bearer Token',      regex: /Bearer [a-zA-Z0-9\-._~+/]+=*/g,                                        replacement: '[AUTH_TOKEN_REDACTED]'        },
+  { name: 'API Key (generic)', regex: /API_KEY[\s:=]+\S+/gi,                                                  replacement: '[API_KEY_REDACTED]'           },
+  { name: 'Internal IP',       regex: /\b10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+\b/g,                           replacement: '[INTERNAL_IP_REDACTED]'       },
+  { name: 'Private Key',       regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/g,                         replacement: '[PRIVATE_KEY_REDACTED]'       },
+  { name: 'AWS Access Key',    regex: /AKIA[0-9A-Z]{16}/g,                                                    replacement: '[AWS_KEY_REDACTED]'           },
+  { name: 'Database URL',      regex: /mongodb(\+srv)?:\/\/[^\s]+|postgresql:\/\/[^\s]+|mysql:\/\/[^\s]+/gi,  replacement: '[DB_URL_REDACTED]'            },
+  { name: 'JWT Secret',        regex: /jwt[_-]?secret[\s:=]+\S+/gi,                                           replacement: '[JWT_SECRET_REDACTED]'        },
+  { name: 'Stripe Secret Key', regex: /sk_live_[a-zA-Z0-9]{8,}/g,                                             replacement: '[STRIPE_KEY_REDACTED]'        },
+  { name: 'Stripe Test Key',   regex: /sk_test_[a-zA-Z0-9]{8,}/g,                                             replacement: '[STRIPE_KEY_REDACTED]'        },
+];
+
+/* ─────────────────────────────────────── scan a single file ── */
+function scanContent(raw) {
+  let redacted = raw;
+  const flagged = [];
+
+  PATTERNS.forEach(({ name, regex, replacement }) => {
+    const r = new RegExp(regex.source, regex.flags);
+    const matches = raw.match(r);
+    if (matches && matches.length > 0) {
+      flagged.push({ name, count: matches.length });
+      redacted = redacted.replace(new RegExp(regex.source, regex.flags), replacement);
+    }
+  });
+
+  return { clean: flagged.length === 0, flagged, redacted };
+}
+
+/* ──────────────────────────── format bytes helper ── */
+function fmtBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/* ──────────────────────────────────────────── styles ── */
+const S = {
+  root: {
+    background: '#070d14',
+    border: '1px solid #0d2137',
+    borderRadius: '12px',
+    padding: '28px',
+    fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
+    color: '#c9d8e8',
+    maxWidth: '960px',
+    margin: '0 auto',
+  },
+
+  /* header */
+  title: {
+    fontSize: '13px',
+    fontWeight: 700,
+    letterSpacing: '3px',
+    color: '#00e5ff',
+    marginBottom: '4px',
+  },
+  subtitle: { fontSize: '11px', color: '#2e5472', letterSpacing: '1px', marginBottom: '24px' },
+
+  /* drop zone */
+  dropZone: (over) => ({
+    border: `2px dashed ${over ? '#00e5ff' : '#0d2137'}`,
+    borderRadius: '12px',
+    padding: '48px 24px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    background: over ? 'rgba(0,229,255,0.04)' : 'rgba(10,21,32,0.6)',
+    boxShadow: over ? '0 0 24px rgba(0,229,255,0.12)' : 'none',
+    marginBottom: '28px',
+    userSelect: 'none',
+  }),
+  cloudIcon: {
+    fontSize: '52px',
+    marginBottom: '12px',
+    display: 'block',
+    filter: 'drop-shadow(0 0 8px rgba(0,229,255,0.4))',
+  },
+  dropMain: {
+    fontSize: '16px',
+    fontWeight: 700,
+    color: '#c9d8e8',
+    letterSpacing: '0.5px',
+    marginBottom: '6px',
+  },
+  dropOr: { fontSize: '12px', color: '#2e5472', marginBottom: '10px' },
+  dropHint: {
+    fontSize: '11px',
+    color: '#1e3347',
+    letterSpacing: '1px',
+    marginTop: '8px',
+  },
+
+  /* file card */
+  card: (status) => ({
+    background: '#0a1520',
+    border: `1px solid ${
+      status === 'clean'  ? '#00ff9d33' :
+      status === 'danger' ? '#ff2d5533' :
+      '#0d2137'
+    }`,
+    borderRadius: '10px',
+    padding: '18px 20px',
+    marginBottom: '14px',
+    transition: 'border-color 0.3s',
+  }),
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: '8px',
+    marginBottom: '10px',
+  },
+  fileName: {
+    fontSize: '13px',
+    fontWeight: 700,
+    color: '#c9d8e8',
+    wordBreak: 'break-all',
+  },
+  fileSize: {
+    fontSize: '11px',
+    color: '#2e5472',
+    marginTop: '2px',
+  },
+  scanning: {
+    fontSize: '12px',
+    color: '#00e5ff',
+    letterSpacing: '2px',
+    animation: 'pulse 1s ease-in-out infinite',
+  },
+  statusClean: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#00ff9d',
+    letterSpacing: '1px',
+  },
+  statusDanger: {
+    fontSize: '12px',
+    fontWeight: 700,
+    color: '#ff2d55',
+    letterSpacing: '1px',
+  },
+
+  /* badge */
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '3px 10px',
+    borderRadius: '4px',
+    fontSize: '10px',
+    fontWeight: 700,
+    background: 'rgba(255,45,85,0.12)',
+    color: '#ff6b8a',
+    border: '1px solid #ff2d5544',
+    letterSpacing: '0.5px',
+  },
+
+  /* preview */
+  preview: {
+    marginTop: '12px',
+    background: '#060c12',
+    border: '1px solid #0d2137',
+    borderRadius: '6px',
+    padding: '12px',
+    fontSize: '11px',
+    lineHeight: '1.7',
+    color: '#4a7fa5',
+    whiteSpace: 'pre-wrap',
+    wordBreak: 'break-all',
+    maxHeight: '120px',
+    overflowY: 'auto',
+  },
+  previewLabel: {
+    fontSize: '9px',
+    color: '#1e3347',
+    letterSpacing: '1.5px',
+    textTransform: 'uppercase',
+    marginBottom: '6px',
+  },
+
+  /* use-in-chat button */
+  useBtn: {
+    marginTop: '12px',
+    padding: '7px 16px',
+    borderRadius: '6px',
+    border: '1px solid #00e5ff55',
+    background: 'rgba(0,229,255,0.08)',
+    color: '#00e5ff',
+    fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1.5px',
+    cursor: 'pointer',
+    transition: 'all 0.16s',
+  },
+  useBtnCopied: {
+    marginTop: '12px',
+    padding: '7px 16px',
+    borderRadius: '6px',
+    border: '1px solid #00ff9d55',
+    background: 'rgba(0,255,157,0.08)',
+    color: '#00ff9d',
+    fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1.5px',
+    cursor: 'default',
+    transition: 'all 0.16s',
+  },
+
+  /* summary bar */
+  summary: {
+    marginTop: '24px',
+    padding: '14px 20px',
+    borderRadius: '8px',
+    border: '1px solid #0d2137',
+    background: '#0a1520',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '24px',
+    flexWrap: 'wrap',
+  },
+  summaryItem: {
+    fontSize: '12px',
+    color: '#4a7fa5',
+    letterSpacing: '0.5px',
+  },
+  summaryNum: (color = '#00e5ff') => ({
+    fontWeight: 900,
+    color,
+    fontSize: '14px',
+  }),
+  divider: {
+    width: '1px',
+    height: '18px',
+    background: '#0d2137',
+  },
+};
+
+/* ─────────────────────────────── scanResult status key ── */
+// 'idle' | 'scanning' | 'clean' | 'danger'
+function cardStatus(file) {
+  if (file.scanning) return 'scanning';
+  if (!file.scanResult) return 'idle';
+  return file.scanResult.clean ? 'clean' : 'danger';
+}
+
+/* ──────────────────────────────────────── component ── */
+export default function FileUpload() {
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const [copiedIndex, setCopiedIndex] = useState(null);
+  const fileInputRef = useRef(null);
+
+  /* ── process a FileList ── */
+  const processFiles = (fileList) => {
+    const files = Array.from(fileList);
+    if (!files.length) return;
+
+    // Append new file stubs (scanning = true)
+    const newEntries = files.map((f) => ({
+      id: `${f.name}-${Date.now()}-${Math.random()}`,
+      name: f.name,
+      size: f.size,
+      content: '',
+      scanResult: null,
+      scanning: true,
+    }));
+
+    setUploadedFiles((prev) => [...prev, ...newEntries]);
+    setScanning(true);
+
+    files.forEach((f, idx) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const raw = e.target.result;
+
+        setTimeout(() => {
+          const result = scanContent(raw);
+
+          setUploadedFiles((prev) =>
+            prev.map((entry) =>
+              entry.id === newEntries[idx].id
+                ? { ...entry, content: raw, scanResult: result, scanning: false }
+                : entry
+            )
+          );
+
+          // Clear global scanning flag when all files done
+          setUploadedFiles((prev) => {
+            const anyStillScanning = prev.some((e) => e.scanning);
+            if (!anyStillScanning) setScanning(false);
+            return prev;
+          });
+        }, 1000);
+      };
+
+      reader.onerror = () => {
+        setUploadedFiles((prev) =>
+          prev.map((entry) =>
+            entry.id === newEntries[idx].id
+              ? { ...entry, scanResult: { clean: true, flagged: [], redacted: '(unreadable binary file)' }, scanning: false }
+              : entry
+          )
+        );
+      };
+
+      reader.readAsText(f);
+    });
+  };
+
+  /* ── drag handlers ── */
+  const onDragOver = (e) => { e.preventDefault(); setDragOver(true); };
+  const onDragLeave = () => setDragOver(false);
+  const onDrop = (e) => {
+    e.preventDefault();
+    setDragOver(false);
+    processFiles(e.dataTransfer.files);
+  };
+
+  /* ── click to browse ── */
+  const onInputChange = (e) => processFiles(e.target.files);
+
+  /* ── copy redacted content for chat ── */
+  const useInChat = (idx) => {
+    const file = uploadedFiles[idx];
+    if (!file?.scanResult) return;
+    const context = `[FILE: ${file.name}]\n${file.scanResult.redacted}`;
+    navigator.clipboard.writeText(context).then(() => {
+      setCopiedIndex(idx);
+      setTimeout(() => setCopiedIndex(null), 2000);
+    });
+  };
+
+  /* ── summary stats ── */
+  const scannedFiles  = uploadedFiles.filter((f) => f.scanResult);
+  const totalSecrets  = scannedFiles.reduce(
+    (sum, f) => sum + f.scanResult.flagged.reduce((s, fl) => s + fl.count, 0),
+    0
+  );
+  const cleanFiles    = scannedFiles.filter((f) => f.scanResult.clean).length;
+
+  /* ─────────────── render ─────────────── */
+  return (
+    <div style={S.root}>
+
+      {/* ── keyframe for scanning pulse ── */}
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.35; }
+        }
+        @keyframes scanLine {
+          0%   { transform: translateY(0); }
+          100% { transform: translateY(100%); }
+        }
+        .fu-use-btn:hover {
+          background: rgba(0,229,255,0.16) !important;
+          box-shadow: 0 0 12px rgba(0,229,255,0.2);
+        }
+      `}</style>
+
+      {/* ── Header ── */}
+      <p style={S.title}>🛡 FILE UPLOAD SCANNER</p>
+      <p style={S.subtitle}>Scans files for secrets before they reach AI — redacts automatically</p>
+
+      {/* ── Drop Zone ── */}
+      <div
+        style={S.dropZone(dragOver)}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onClick={() => fileInputRef.current?.click()}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => e.key === 'Enter' && fileInputRef.current?.click()}
+        aria-label="File upload drop zone"
+      >
+        <span style={S.cloudIcon}>☁</span>
+        <p style={S.dropMain}>Drop your codebase files here</p>
+        <p style={S.dropOr}>or click to browse</p>
+        <p style={S.dropHint}>Supports .js .py .env .txt .json .ts .md</p>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept=".js,.py,.env,.txt,.json,.ts,.md,.jsx,.tsx,.yaml,.yml,.sh,.css,.html,.toml,.cfg,.ini"
+          style={{ display: 'none' }}
+          onChange={onInputChange}
+        />
+      </div>
+
+      {/* ── File Cards ── */}
+      {uploadedFiles.length > 0 && (
+        <div>
+          {uploadedFiles.map((file, idx) => {
+            const status = cardStatus(file);
+            const totalFound = file.scanResult?.flagged?.reduce((s, f) => s + f.count, 0) ?? 0;
+
+            return (
+              <div key={file.id} style={S.card(status)}>
+
+                {/* Card header: name + status */}
+                <div style={S.cardHeader}>
+                  <div>
+                    <div style={S.fileName}>📄 {file.name}</div>
+                    <div style={S.fileSize}>{fmtBytes(file.size)}</div>
+                  </div>
+
+                  <div>
+                    {file.scanning && (
+                      <span style={S.scanning}>⟳ SCANNING…</span>
+                    )}
+                    {!file.scanning && file.scanResult?.clean && (
+                      <span style={S.statusClean}>✓ File is clean — safe to use with AI</span>
+                    )}
+                    {!file.scanning && file.scanResult && !file.scanResult.clean && (
+                      <span style={S.statusDanger}>⚠ {totalFound} secret{totalFound !== 1 ? 's' : ''} found — automatically redacted</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Secret type badges */}
+                {!file.scanning && file.scanResult?.flagged?.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                    {file.scanResult.flagged.map((fl, fi) => (
+                      <span key={fi} style={S.badge}>
+                        🚨 {fl.name} ×{fl.count}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Redacted preview */}
+                {!file.scanning && file.scanResult && (
+                  <>
+                    <p style={S.previewLabel}>Redacted Preview</p>
+                    <div style={S.preview}>
+                      {file.scanResult.redacted.slice(0, 300)}
+                      {file.scanResult.redacted.length > 300 && (
+                        <span style={{ color: '#1e3347' }}> …(truncated)</span>
+                      )}
+                    </div>
+
+                    {/* Use in chat button */}
+                    <button
+                      className="fu-use-btn"
+                      style={copiedIndex === idx ? S.useBtnCopied : S.useBtn}
+                      onClick={() => useInChat(idx)}
+                      disabled={copiedIndex === idx}
+                    >
+                      {copiedIndex === idx ? '✓ COPIED TO CLIPBOARD' : '⊕ USE IN CHAT'}
+                    </button>
+                  </>
+                )}
+
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Summary Bar ── */}
+      {scannedFiles.length > 0 && (
+        <div style={S.summary}>
+          <span style={S.summaryItem}>
+            <span style={S.summaryNum()}>
+              {scannedFiles.length}
+            </span>{' '}
+            file{scannedFiles.length !== 1 ? 's' : ''} scanned
+          </span>
+
+          <div style={S.divider} />
+
+          <span style={S.summaryItem}>
+            <span style={S.summaryNum(totalSecrets > 0 ? '#ff2d55' : '#00ff9d')}>
+              {totalSecrets}
+            </span>{' '}
+            secret{totalSecrets !== 1 ? 's' : ''} found
+          </span>
+
+          <div style={S.divider} />
+
+          <span style={S.summaryItem}>
+            <span style={S.summaryNum('#00ff9d')}>
+              {cleanFiles}
+            </span>{' '}
+            file{cleanFiles !== 1 ? 's' : ''} clean
+          </span>
+        </div>
+      )}
+
+    </div>
+  );
+}
