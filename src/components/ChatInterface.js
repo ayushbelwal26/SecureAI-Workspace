@@ -20,7 +20,7 @@ const THREAT_BG = {
   CRITICAL: 'rgba(213,0,0,0.08)',
 };
 
-export default function ChatInterface() {
+export default function ChatInterface({ fileContext = '', onClearContext }) {
   const [messages, setMessages] = useState([
     {
       id: 'init',
@@ -62,64 +62,67 @@ export default function ChatInterface() {
     setInput('');
     setLoading(true);
 
+    const truncatedContext = fileContext ? fileContext.slice(0, 1500) : '';
+
+    const fullMessage = truncatedContext
+      ? `I have uploaded a file. Here is its content (secrets already redacted):\n\n${truncatedContext}\n\nMy question: ${trimmed}`
+      : trimmed;
+
+    // Build conversation history for memory
+    const history = messages
+      .filter((m) => m.role === 'user' || m.role === 'ai')
+      .map((m) => ({ role: m.role === 'ai' ? 'assistant' : 'user', content: m.content || m.text || '' }));
+
     try {
       const res = await fetch('/api/secure-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, sessionId }),
+        body: JSON.stringify({ message: fullMessage, sessionId, history }),
       });
       const data = await res.json();
       console.log('API Response:', data);
 
-      // Handle rate limiting before throwing
+      let errorMessage = null;
+
       if (res.status === 429 || data.rateLimited) {
+        errorMessage = '⏱ Rate limit reached — wait a moment and try again';
+      } else if (data.anomaly?.score >= 0.9) {
+        errorMessage = '🚨 Anomaly detected — too many requests in a short time. Slow down and try again in 60 seconds';
+      } else if (data.blocked) {
+        errorMessage = `🛡 Message blocked by SecureAI — ${data.reason}`;
+      } else if (data.error) {
+        errorMessage = `Error: ${data.error}`;
+      }
+
+      if (errorMessage) {
         setMessages((prev) => [
           ...prev,
           {
             id: Date.now() + '-err',
             role: 'security',
-            content: '⏱ You are out of free tier limits. Please wait a moment and try again.',
+            content: errorMessage,
             timestamp: new Date().toISOString(),
-            status: 'ERROR',
-            threatLevel: 'HIGH',
+            status: data.blocked ? 'BLOCKED' : 'ERROR',
+            threatLevel: data.threatLevel || 'HIGH',
+            flags: data.flags || [],
           },
         ]);
         return;
       }
 
-      if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to fetch response');
-      }
-
-      if (data.blocked) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + '-blocked',
-            role: 'security',
-            content: `⛔ BLOCKED: ${data.reason}`,
-            timestamp: new Date().toISOString(),
-            status: 'BLOCKED',
-            threatLevel: data.threatLevel || 'HIGH',
-            flags: data.flags || [],
-            extra: `Threat level: ${data.threatLevel}`,
-          },
-        ]);
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + '-ai',
-            role: 'ai',
-            content: data.response,
-            timestamp: new Date().toISOString(),
-            status: data.clean === false ? 'REDACTED' : 'CLEAN',
-            threatLevel: data.threatLevel || 'SAFE',
-            sanitized: data.clean === false,
-            flagged: data.flagged || [],
-          },
-        ]);
-      }
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + '-ai',
+          role: 'ai',
+          content: data.response,
+          timestamp: new Date().toISOString(),
+          status: data.clean === false ? 'REDACTED' : 'CLEAN',
+          threatLevel: data.threatLevel || 'SAFE',
+          sanitized: data.clean === false,
+          flagged: data.flagged || [],
+        },
+      ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -147,25 +150,25 @@ export default function ChatInterface() {
   return (
     <div
       style={{
-        background: '#070d14',
-        border: '1px solid #0d2137',
+        background: '#080c12',
+        border: '1px solid #0d1826',
         borderRadius: '12px',
         display: 'flex',
         flexDirection: 'column',
         height: '520px',
         overflow: 'hidden',
-        fontFamily: "'DM Mono', monospace",
+        fontFamily: "'JetBrains Mono', monospace",
       }}
     >
       {/* Header */}
       <div
         style={{
           padding: '12px 18px',
-          borderBottom: '1px solid #0d2137',
+          borderBottom: '1px solid #0d1826',
           display: 'flex',
           alignItems: 'center',
           gap: '10px',
-          background: '#060c13',
+          background: '#070e18',
         }}
       >
         <span style={{ color: '#00e5ff', fontSize: '11px', letterSpacing: '2px', fontWeight: 700 }}>
@@ -216,7 +219,7 @@ export default function ChatInterface() {
               }}
             >
               <span style={{ color: '#2e4a62', fontSize: '9px', letterSpacing: '1px' }}>
-                {msg.role === 'user' ? 'YOU' : msg.role === 'ai' ? 'GEMINI' : msg.role.toUpperCase()}
+                {msg.role === 'user' ? 'YOU' : msg.role === 'ai' ? 'GROK' : msg.role.toUpperCase()}
               </span>
               <StatusBadge status={msg.status} />
               {msg.threatLevel && msg.threatLevel !== 'SAFE' && (
@@ -242,7 +245,7 @@ export default function ChatInterface() {
                     ? 'rgba(0,229,255,0.08)'
                     : msg.role === 'system'
                     ? 'rgba(0,230,118,0.06)'
-                    : '#0b1929',
+                    : '#080e1a',
                 border:
                   msg.status === 'BLOCKED'
                     ? '1px solid rgba(213,0,0,0.4)'
@@ -250,7 +253,7 @@ export default function ChatInterface() {
                     ? '1px solid rgba(255,214,0,0.3)'
                     : msg.role === 'user'
                     ? '1px solid rgba(0,229,255,0.15)'
-                    : '1px solid #0d2137',
+                    : '1px solid #0d1826',
                 color:
                   msg.status === 'BLOCKED'
                     ? '#ff5252'
@@ -327,72 +330,120 @@ export default function ChatInterface() {
         <div ref={bottomRef} />
       </div>
 
+      {/* File context banner */}
+      {fileContext && (
+        <div style={{
+          padding: '7px 18px',
+          borderBottom: '1px solid rgba(0,229,255,0.15)',
+          background: 'rgba(0,229,255,0.06)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '10px',
+        }}>
+          <span style={{
+            fontSize: '11px',
+            color: '#00e5ff',
+            letterSpacing: '0.5px',
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            📄 File loaded as context — ask anything about it
+          </span>
+          <button
+            onClick={onClearContext}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#2e5472',
+              fontSize: '14px',
+              cursor: 'pointer',
+              padding: '0 4px',
+              lineHeight: 1,
+            }}
+            title="Clear file context"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Input */}
       <div
         style={{
           padding: '12px 18px',
-          borderTop: '1px solid #0d2137',
-          display: 'flex',
-          gap: '10px',
-          background: '#060c13',
+          borderTop: '1px solid #0d1826',
+          background: '#070e18',
         }}
       >
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKey}
-          disabled={loading}
-          placeholder="Ask anything about your codebase or files..."
-          rows={1}
-          style={{
-            flex: 1,
-            background: '#0b1929',
-            border: '1px solid #0d2137',
-            borderRadius: '8px',
-            color: '#c9d8e8',
-            fontFamily: "'DM Mono', monospace",
-            fontSize: '13px',
-            padding: '10px 14px',
-            resize: 'none',
-            outline: 'none',
-            lineHeight: '1.5',
-          }}
-          onFocus={(e) => (e.target.style.borderColor = '#00e5ff44')}
-          onBlur={(e) => (e.target.style.borderColor = '#0d2137')}
-        />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
-          <button
-            onClick={sendMessage}
-            disabled={loading || !input.trim()}
+        {/* Textarea row */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '6px' }}>
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value.slice(0, 2000))}
+            onKeyDown={handleKey}
+            disabled={loading}
+            placeholder="Ask anything about your codebase or files..."
+            rows={1}
             style={{
-              background: loading || !input.trim() ? '#0d2137' : 'rgba(0,229,255,0.12)',
-              border: `1px solid ${loading || !input.trim() ? '#0d2137' : 'rgba(0,229,255,0.3)'}`,
+              flex: 1,
+              background: '#080e1a',
+              border: `1px solid ${input.length >= 1900 ? 'rgba(255,45,85,0.5)' : input.length >= 1500 ? 'rgba(255,170,0,0.4)' : '#0d1826'}`,
               borderRadius: '8px',
-              color: loading || !input.trim() ? '#2e4a62' : '#00e5ff',
-              fontFamily: "'DM Mono', monospace",
-              fontSize: '11px',
-              padding: '0 18px',
-              cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-              letterSpacing: '1px',
-              transition: 'all 0.2s',
-              height: '38px',
+              color: '#c9d8e8',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '13px',
+              padding: '10px 14px',
+              resize: 'none',
+              outline: 'none',
+              lineHeight: '1.5',
             }}
-          >
-            SEND
-          </button>
-          <div style={{
-            textAlign: 'center',
-            fontSize: '9px',
-            color: '#00e676',
-            letterSpacing: '1px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '4px',
-          }}>
-            <span>🔒</span>
-            <span>Protected</span>
+            onFocus={(e) => (e.target.style.borderColor = '#00e5ff44')}
+            onBlur={(e) => (e.target.style.borderColor =
+              input.length >= 1900 ? 'rgba(255,45,85,0.5)'
+              : input.length >= 1500 ? 'rgba(255,170,0,0.4)'
+              : '#0d1826'
+            )}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
+            <button
+              onClick={sendMessage}
+              disabled={loading || !input.trim()}
+              style={{
+                background: loading || !input.trim() ? '#0d1826' : 'rgba(0,229,255,0.12)',
+                border: `1px solid ${loading || !input.trim() ? '#0d1826' : 'rgba(0,229,255,0.3)'}`,
+                borderRadius: '8px',
+                color: loading || !input.trim() ? '#2e4a62' : '#00e5ff',
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: '11px',
+                padding: '0 14px',
+                cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
+                letterSpacing: '1px',
+                transition: 'all 0.2s',
+                height: '38px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span>🔒</span>
+              {input.trim() ? 'SEND' : 'PROTECTED SEND'}
+            </button>
           </div>
+        </div>
+
+        {/* Char counter */}
+        <div style={{ textAlign: 'right' }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '10px',
+            letterSpacing: '0.5px',
+            color: input.length >= 1900 ? '#ff2d55'
+              : input.length >= 1500 ? '#ffaa00'
+              : '#1e3347',
+          }}>
+            {input.length} / 2000
+          </span>
         </div>
       </div>
 

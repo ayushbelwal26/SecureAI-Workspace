@@ -1,439 +1,251 @@
-'use client';
-
-import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
 
-/* ── animated counter hook ── */
-function useCountUp(target, duration = 1200, start = false) {
-  const [val, setVal] = useState(0);
-  useEffect(() => {
-    if (!start || typeof target !== 'number') return;
-    let startTime = null;
-    const step = (ts) => {
-      if (!startTime) startTime = ts;
-      const pct = Math.min((ts - startTime) / duration, 1);
-      setVal(Math.floor(pct * target));
-      if (pct < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
-  }, [target, duration, start]);
-  return val;
-}
+export const metadata = {
+  title: 'SecureAI — The Invisible Security Layer for AI Development',
+  description: 'Real-time prompt injection prevention, PII scrubbing, and adversarial defense integrated directly into your LLM pipeline.',
+};
 
-/* ── intersection observer hook ── */
-function useVisible(threshold = 0.15) {
-  const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
-  useEffect(() => {
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
-      { threshold }
-    );
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return [ref, visible];
-}
-
-/* ── stat card ── */
-const STATS = [
-  { num: 13, label: 'Threat Patterns',   sub: 'Detected',   color: '#ff2d55', icon: '🚨' },
-  { num: 6,  label: 'Secret Types',      sub: 'Scanned',    color: '#ffaa00', icon: '🔑' },
-  { num: 3,  label: 'AI Agents',         sub: 'Controlled', color: '#bf5af2', icon: '🤖' },
-  { num: null, label: 'Files',          sub: 'You Can Upload', color: '#00d4ff', icon: '☁' },
-];
-
-function StatCard({ stat, animate }) {
-  const count = useCountUp(stat.num, 1000, animate && stat.num !== null);
-  return (
-    <div className="glass" style={{
-      padding: '28px 24px',
-      textAlign: 'center',
-      transition: 'transform 0.2s, box-shadow 0.2s',
-      cursor: 'default',
-      animation: animate ? 'fadeSlideIn 0.5s ease forwards' : 'none',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.transform = 'translateY(-4px)';
-      e.currentTarget.style.boxShadow = `0 12px 40px ${stat.color}22`;
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.transform = 'translateY(0)';
-      e.currentTarget.style.boxShadow = 'none';
-    }}>
-      <div style={{ fontSize: '28px', marginBottom: '12px' }}>{stat.icon}</div>
-      <div style={{
-        fontFamily: "'Space Grotesk', sans-serif",
-        fontSize: '48px',
-        fontWeight: 800,
-        color: stat.color,
-        lineHeight: 1,
-        marginBottom: '8px',
-        textShadow: `0 0 30px ${stat.color}55`,
-        animation: animate ? 'count-up 0.4s ease' : 'none',
-      }}>
-        {stat.num === null ? '∞' : count}
-      </div>
-      <div style={{ fontSize: '12px', color: '#e8f4f8', fontWeight: 600, letterSpacing: '0.5px' }}>
-        {stat.label}
-      </div>
-      <div style={{ fontSize: '10px', color: '#4a7a8a', letterSpacing: '1.5px', marginTop: '2px' }}>
-        {stat.sub}
-      </div>
-    </div>
-  );
-}
-
-/* ── how it works step ── */
-const STEPS = [
-  { icon: '☁',  step: '01', title: 'Upload',      color: '#00d4ff', desc: 'Drop any file — code, .env, documents. We scan for secrets instantly before anything leaves your machine.' },
-  { icon: '🛡', step: '02', title: 'Protect',     color: '#00ff88', desc: 'Secrets are automatically redacted before AI ever sees them. Private keys, tokens, passwords — all replaced.' },
-  { icon: '✓',  step: '03', title: 'Work Safely', color: '#bf5af2', desc: 'Your team uses AI normally. We watch silently in the background. Zero friction. Total protection.' },
-];
-
-/* ── threat preview ── */
-const THREATS = [
-  { name: 'Prompt Injection', desc: 'Attackers override AI instructions to hijack behavior', color: '#ff2d55', sev: 'CRITICAL' },
-  { name: 'Data Exfiltration', desc: 'Unauthorized data extraction attempts via AI', color: '#ffaa00', sev: 'HIGH' },
-  { name: 'Secret Leakage', desc: 'API keys & tokens exposed in AI responses', color: '#ffaa00', sev: 'HIGH' },
-  { name: 'Agent Abuse', desc: 'AI agents performing restricted or dangerous actions', color: '#bf5af2', sev: 'CRITICAL' },
-];
-
-/* ─────────────────────── page ─────────────────────── */
 export default function HomePage() {
-  const [statsRef, statsVisible] = useVisible();
-  const [howRef,   howVisible]   = useVisible();
-  const [threatRef, threatVisible] = useVisible();
-
   return (
-    <div style={{ position: 'relative', zIndex: 1 }}>
-      <Navbar />
+    <div style={{ background: '#080c12', minHeight: '100vh', color: '#e2edf5', fontFamily: "'Inter', 'Space Grotesk', sans-serif", overflowX: 'hidden' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700;800&display=swap');
+        @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes livePulse { 0%{box-shadow:0 0 0 0 rgba(255,45,85,.55)} 70%{box-shadow:0 0 0 8px rgba(255,45,85,0)} 100%{box-shadow:0 0 0 0 rgba(255,45,85,0)} }
+        @keyframes tealPulse { 0%{box-shadow:0 0 0 0 rgba(0,229,255,.55)} 70%{box-shadow:0 0 0 7px rgba(0,229,255,0)} 100%{box-shadow:0 0 0 0 rgba(0,229,255,0)} }
+        @keyframes waveAnim { 0%,100%{d:path("M0,80 C150,120 350,40 500,80 C650,120 850,40 1000,80 L1000,200 L0,200 Z")} 50%{d:path("M0,100 C150,60 350,140 500,100 C650,60 850,140 1000,100 L1000,200 L0,200 Z")} }
+        @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes scanMove { 0%{top:0} 100%{top:100%} }
+        .hero-btn-primary { display:inline-flex; align-items:center; gap:8px; padding:12px 28px; border-radius:9px; background:#00e5ff; color:#060a12; font-size:13px; font-weight:700; letter-spacing:.4px; text-decoration:none; transition:opacity .2s, box-shadow .2s; }
+        .hero-btn-primary:hover { opacity:.88; box-shadow:0 0 28px rgba(0,229,255,.45); }
+        .hero-btn-outline { display:inline-flex; align-items:center; gap:8px; padding:12px 28px; border-radius:9px; border:1px solid rgba(0,229,255,.3); color:#00e5ff; font-size:13px; font-weight:600; letter-spacing:.4px; text-decoration:none; transition:background .2s, border-color .2s; }
+        .hero-btn-outline:hover { background:rgba(0,229,255,.07); border-color:rgba(0,229,255,.5); }
+        .feature-card { background:#0d1826; border:1px solid rgba(0,229,255,.08); border-radius:14px; overflow:hidden; transition:border-color .2s, box-shadow .2s, transform .2s; }
+        .feature-card:hover { border-color:rgba(0,229,255,.22); box-shadow:0 0 28px rgba(0,229,255,.07); transform:translateY(-3px); }
+        .stat-card { background:#0d1826; border:1px solid rgba(0,229,255,.08); border-radius:12px; padding:28px 24px; text-align:center; transition:border-color .2s; }
+        .stat-card:hover { border-color:rgba(0,229,255,.2); }
+        .nav-link-lp { font-size:13px; font-weight:500; color:#6b9aaa; text-decoration:none; transition:color .18s; }
+        .nav-link-lp:hover { color:#e2edf5; }
+        code { font-family:'JetBrains Mono',monospace; }
+        @media (max-width:768px) {
+          .hero-btns { flex-direction:column !important; align-items:stretch !important; }
+          .hero-btns a { text-align:center; justify-content:center; }
+          .feat-grid { grid-template-columns:1fr !important; }
+          .stats-grid { grid-template-columns:repeat(2,1fr) !important; }
+          .lp-nav-links { display:none !important; }
+          .code-section { grid-template-columns:1fr !important; }
+        }
+      `}</style>
 
-      {/* ── Hero ── */}
-      <section style={{
-        paddingTop: '140px',
-        paddingBottom: '100px',
-        paddingLeft: '32px',
-        paddingRight: '32px',
-        maxWidth: '900px',
-        margin: '0 auto',
-        textAlign: 'center',
-        animation: 'fadeSlideIn 0.7s ease forwards',
-      }}>
-        <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '6px 16px',
-          borderRadius: '20px',
-          border: '1px solid rgba(0,212,255,0.25)',
-          background: 'rgba(0,212,255,0.06)',
-          fontSize: '11px',
-          color: '#00d4ff',
-          letterSpacing: '2px',
-          marginBottom: '36px',
-          fontFamily: "'Space Mono', monospace",
-        }}>
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#00ff88', boxShadow: '0 0 8px #00ff88', display: 'inline-block', animation: 'dot-pulse 2s ease-in-out infinite' }} />
-          ENTERPRISE AI SECURITY PLATFORM
-        </div>
+      {/* ── Ambient glows ── */}
+      <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:0 }}>
+        <div style={{ position:'absolute', top:'-15%', left:'50%', transform:'translateX(-50%)', width:900, height:600, background:'radial-gradient(ellipse, rgba(0,229,255,0.07) 0%, transparent 70%)' }} />
+        <div style={{ position:'absolute', bottom:'5%', right:'-5%', width:500, height:500, background:'radial-gradient(ellipse, rgba(0,229,255,0.04) 0%, transparent 70%)' }} />
+      </div>
 
-        <h1 style={{ marginBottom: '8px', lineHeight: 1.1 }}>
-          <span style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(40px, 6vw, 64px)',
-            fontWeight: 800,
-            color: '#e8f4f8',
-            display: 'block',
-          }}>Enterprise AI,</span>
-          <span style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(40px, 6vw, 64px)',
-            fontWeight: 800,
-            background: 'linear-gradient(90deg, #00d4ff, #00ff88)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            display: 'block',
-          }}>Protected by default.</span>
-        </h1>
+      <div style={{ position:'relative', zIndex:1 }}>
 
-        <p style={{
-          fontSize: '16px',
-          color: '#4a7a8a',
-          lineHeight: 1.8,
-          maxWidth: '600px',
-          margin: '28px auto 40px',
-          fontFamily: "'Space Mono', monospace",
-        }}>
-          SecureAI sits invisibly between your team and AI.
-          Files stay private. Secrets stay secret. Work stays safe.
-        </p>
-
-        <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '48px' }}>
-          <Link href="/workspace" style={{
-            padding: '14px 32px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #00d4ff, #0099bb)',
-            color: '#020818',
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 700,
-            fontSize: '14px',
-            textDecoration: 'none',
-            letterSpacing: '0.5px',
-            boxShadow: '0 0 30px rgba(0,212,255,0.3)',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(0,212,255,0.5)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 0 30px rgba(0,212,255,0.3)'; }}
-          >
-            Open Workspace →
+        {/* ── Navbar ── */}
+        <nav style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 48px', height:56, borderBottom:'1px solid rgba(255,255,255,0.04)', background:'rgba(8,12,18,0.9)', backdropFilter:'blur(16px)', position:'sticky', top:0, zIndex:100 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:28, height:28, borderRadius:7, background:'linear-gradient(135deg,rgba(0,229,255,.25),rgba(0,229,255,.08))', border:'1px solid rgba(0,229,255,.3)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>🛡</div>
+            <span style={{ fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:15, color:'#e2edf5' }}>SecureAI</span>
+          </div>
+          <div className="lp-nav-links" style={{ display:'flex', gap:32, alignItems:'center' }}>
+            {[{l:'Guard',h:'/'},{l:'Workspace',h:'/workspace'},{l:'Threats',h:'/threats'},{l:'Analytics',h:'/analytics'}].map(x=>(
+              <Link key={x.h} href={x.h} className="nav-link-lp">{x.l}</Link>
+            ))}
+          </div>
+          <Link href="/workspace" style={{ padding:'7px 18px', borderRadius:8, background:'#00e5ff', color:'#060a12', fontSize:12, fontWeight:700, letterSpacing:.5, textDecoration:'none' }}>
+            Get Started
           </Link>
-          <Link href="/threats" style={{
-            padding: '14px 32px',
-            borderRadius: '12px',
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: 'rgba(255,255,255,0.04)',
-            color: '#e8f4f8',
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 700,
-            fontSize: '14px',
-            textDecoration: 'none',
-            letterSpacing: '0.5px',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(0,212,255,0.3)'; e.currentTarget.style.color = '#00d4ff'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)'; e.currentTarget.style.color = '#e8f4f8'; }}
-          >
-            See Threats ↗
-          </Link>
-        </div>
+        </nav>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '16px',
-          fontSize: '11px',
-          color: '#2a4a5a',
-          letterSpacing: '1px',
-          flexWrap: 'wrap',
-        }}>
-          {['Protecting codebases', 'Zero leaks', 'Real-time'].map((t, i) => (
-            <span key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {i > 0 && <span style={{ color: '#0d2a3a' }}>·</span>}
-              <span style={{ color: '#00d4ff' }}>✓</span> {t}
-            </span>
-          ))}
-        </div>
-      </section>
+        {/* ── Hero ── */}
+        <section style={{ maxWidth:860, margin:'0 auto', padding:'100px 32px 80px', textAlign:'center' }}>
 
-      {/* ── Stats row ── */}
-      <section ref={statsRef} style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 32px 100px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '20px',
-      }}>
-        {STATS.map((s, i) => (
-          <StatCard key={i} stat={s} animate={statsVisible} />
-        ))}
-      </section>
+          {/* Module label */}
+          <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(0,229,255,.2)', background:'rgba(0,229,255,.06)', marginBottom:36, fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:2.5, color:'#00e5ff', fontWeight:700 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'#00e5ff', animation:'tealPulse 2s ease-in-out infinite' }} />
+            ACTIVE SECURITY FRAMEWORK
+          </div>
 
-      {/* ── How it works ── */}
-      <section ref={howRef} style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 32px 100px',
-        opacity: howVisible ? 1 : 0,
-        transform: howVisible ? 'none' : 'translateY(20px)',
-        transition: 'opacity 0.6s ease, transform 0.6s ease',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
-          <h2 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 800,
-            color: '#e8f4f8',
-            marginBottom: '12px',
-          }}>How SecureAI protects your team</h2>
-          <p style={{ color: '#4a7a8a', fontSize: '13px', letterSpacing: '0.5px' }}>
-            Three invisible layers. Zero friction.
+          <h1 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(36px,6vw,68px)', fontWeight:800, lineHeight:1.1, letterSpacing:'-1px', marginBottom:24 }}>
+            The Invisible Security Layer<br />
+            <span style={{ color:'#00e5ff', textShadow:'0 0 60px rgba(0,229,255,.3)' }}>for AI Development</span>
+          </h1>
+
+          <p style={{ fontSize:'clamp(14px,1.8vw,17px)', color:'#6b9aaa', lineHeight:1.8, maxWidth:580, margin:'0 auto 44px' }}>
+            Real-time prompt injection prevention, PII scrubbing, and adversarial defense
+            integrated directly into your LLM pipeline. High-performance protection with zero friction.
           </p>
-        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
-          {STEPS.map((s, i) => (
-            <div key={i} className="glass" style={{
-              padding: '36px 28px',
-              position: 'relative',
-              overflow: 'hidden',
-              transition: 'transform 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-4px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            >
-              {/* step number watermark */}
-              <div style={{
-                position: 'absolute',
-                top: '16px',
-                right: '20px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: '64px',
-                fontWeight: 800,
-                color: `${s.color}08`,
-                lineHeight: 1,
-                pointerEvents: 'none',
-                userSelect: 'none',
-              }}>{s.step}</div>
+          <div className="hero-btns" style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap' }}>
+            <Link href="/workspace" className="hero-btn-primary">Deploy Agent →</Link>
+            <Link href="/threats"   className="hero-btn-outline">View Documentation</Link>
+          </div>
 
-              <div style={{
-                width: '52px', height: '52px',
-                borderRadius: '14px',
-                background: `${s.color}12`,
-                border: `1px solid ${s.color}30`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '24px',
-                marginBottom: '20px',
-                boxShadow: `0 0 20px ${s.color}15`,
-              }}>{s.icon}</div>
+          {/* Wave SVG decoration */}
+          <div style={{ marginTop:72, position:'relative', height:140, overflow:'hidden', borderRadius:16 }}>
+            <svg viewBox="0 0 1000 140" preserveAspectRatio="none" style={{ width:'100%', height:'100%', position:'absolute', inset:0 }}>
+              <defs>
+                <linearGradient id="wg" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#00e5ff" stopOpacity="0.18" />
+                  <stop offset="100%" stopColor="#00e5ff" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path d="M0,60 C120,100 240,20 360,60 C480,100 600,20 720,60 C840,100 960,30 1000,60 L1000,140 L0,140 Z" fill="url(#wg)" />
+              <path d="M0,60 C120,100 240,20 360,60 C480,100 600,20 720,60 C840,100 960,30 1000,60" fill="none" stroke="#00e5ff" strokeWidth="1.5" strokeOpacity="0.4" />
+              {[80,200,360,520,680,820,960].map((x,i)=>(
+                <circle key={i} cx={x} cy={60 + Math.sin(i)*20} r="2.5" fill="#00e5ff" fillOpacity="0.6" />
+              ))}
+            </svg>
+            <div style={{ position:'absolute', inset:0, background:'linear-gradient(to right, #080c12 0%, transparent 15%, transparent 85%, #080c12 100%)' }} />
+          </div>
+        </section>
 
-              <h3 style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: '22px',
-                fontWeight: 700,
-                color: s.color,
-                marginBottom: '12px',
-              }}>{s.title}</h3>
-              <p style={{ fontSize: '13px', color: '#4a7a8a', lineHeight: 1.8 }}>{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Threat preview ── */}
-      <section ref={threatRef} style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 32px 100px',
-        opacity: threatVisible ? 1 : 0,
-        transform: threatVisible ? 'none' : 'translateY(20px)',
-        transition: 'opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s',
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '56px' }}>
-          <h2 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(28px, 4vw, 40px)',
-            fontWeight: 800,
-            color: '#e8f4f8',
-            marginBottom: '12px',
-          }}>What we stop every day</h2>
-          <p style={{ color: '#4a7a8a', fontSize: '13px', letterSpacing: '0.5px' }}>
-            Real threats. Real time. See the demo →
-          </p>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-          {THREATS.map((t, i) => (
-            <div key={i} className="glass" style={{
-              padding: '28px 24px',
-              borderLeft: `3px solid ${t.color}`,
-              transition: 'transform 0.2s, box-shadow 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(4px)'; e.currentTarget.style.boxShadow = `0 0 30px ${t.color}15`; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
-            >
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <h3 style={{
-                  fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#e8f4f8',
-                }}>{t.name}</h3>
-                <span style={{
-                  padding: '3px 10px',
-                  borderRadius: '20px',
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  letterSpacing: '1.5px',
-                  color: t.color,
-                  background: `${t.color}12`,
-                  border: `1px solid ${t.color}30`,
-                  flexShrink: 0,
-                  marginLeft: '12px',
-                }}>{t.sev}</span>
+        {/* ── Stats bar ── */}
+        <div style={{ maxWidth:900, margin:'0 auto 80px', padding:'0 32px' }}>
+          <div className="stats-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:1, background:'rgba(0,229,255,0.06)', borderRadius:14, border:'1px solid rgba(0,229,255,0.1)', overflow:'hidden' }}>
+            {[
+              { value:'99.9%', label:'Attack Block Rate' },
+              { value:'<5ms',  label:'Added Latency' },
+              { value:'13',    label:'Secret Patterns' },
+              { value:'0',     label:'Bytes Leaked' },
+            ].map((s,i)=>(
+              <div key={i} style={{ padding:'28px 20px', textAlign:'center', background:'rgba(8,12,18,0.8)' }}>
+                <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:32, fontWeight:800, color:'#00e5ff', textShadow:'0 0 20px rgba(0,229,255,0.4)', lineHeight:1, marginBottom:6 }}>{s.value}</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#2a4a5a', letterSpacing:1.5 }}>{s.label.toUpperCase()}</div>
               </div>
-              <p style={{ fontSize: '13px', color: '#4a7a8a', marginBottom: '16px', lineHeight: 1.6 }}>{t.desc}</p>
-              <Link href="/threats" style={{
-                fontSize: '11px',
-                color: t.color,
-                textDecoration: 'none',
-                letterSpacing: '0.5px',
-                fontWeight: 600,
-              }}>→ See demo</Link>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Feature cards ── */}
+        <section style={{ maxWidth:1100, margin:'0 auto 100px', padding:'0 32px' }}>
+          <div style={{ textAlign:'center', marginBottom:52 }}>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:3, color:'#00e5ff', marginBottom:14 }}>VIRIDANCE MODULES</div>
+            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(26px,4vw,40px)', fontWeight:800, letterSpacing:'-0.5px' }}>Every attack surface, covered.</h2>
+          </div>
+
+          <div className="feat-grid" style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:16 }}>
+            {[
+              { icon:'🔍', title:'Secret Scrubbing & PII Redaction', desc:'Automatically detect and mask API keys, passwords, and sensitive personal data before they ever reach the model training set or prompt log.', color:'#00e5ff', tag:'VIRIDANCE MODULE' },
+              { icon:'💉', title:'Prompt Injection Firewall', desc:'Our neural scanner intercepts adversarial prompts designed to bypass model guardrails or leak internal system instructions.', color:'#ff2d55', tag:'ACTIVE DEFENSE' },
+              { icon:'⚡', title:'Zero-Knowledge Token Encryption', desc:'Your data is encrypted at the token level before leaving your infrastructure. We secure the pipeline without ever seeing the content.', color:'#bf5af2', tag:'END-TO-END' },
+              { icon:'🤖', title:'Agent Permission Control', desc:'Every AI agent locked to exactly what it needs. Restricted actions are enforced at the API layer — not just a policy doc.', color:'#ffaa00', tag:'AGENT CONTROL' },
+              { icon:'📈', title:'Anomaly Detection', desc:'Behavioral patterns catch attacks no filter can see. Rate limiting and session analysis stop sophisticated multi-step attacks.', color:'#00ff88', tag:'BEHAVIORAL AI' },
+              { icon:'📋', title:'Compliance Audit Log', desc:'Every security event logged with full context for GDPR, SOC2, HIPAA, and PCI-DSS compliance and forensic investigation.', color:'#00e5ff', tag:'COMPLIANCE' },
+            ].map((f,i)=>(
+              <div key={i} className="feature-card" style={{ padding:'28px 24px', animation:`fadeUp 0.5s ease ${i*0.08}s both` }}>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:2, color:f.color, marginBottom:14, opacity:0.8 }}>{f.tag}</div>
+                <div style={{ fontSize:28, marginBottom:12 }}>{f.icon}</div>
+                <h3 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:16, fontWeight:700, color:'#e2edf5', marginBottom:10, lineHeight:1.3 }}>{f.title}</h3>
+                <p style={{ fontSize:13, color:'#6b9aaa', lineHeight:1.7 }}>{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Processing latency + block rate ── */}
+        <section style={{ maxWidth:1100, margin:'0 auto 100px', padding:'0 32px' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:20 }}>
+
+            {/* Latency card */}
+            <div style={{ background:'#0d1826', border:'1px solid rgba(0,229,255,0.08)', borderRadius:14, padding:'36px 32px', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg, transparent, #00e5ff44, transparent)' }} />
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:2, color:'#6b9aaa', marginBottom:16 }}>PROCESSING LATENCY</div>
+              <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:64, fontWeight:800, color:'#00e5ff', textShadow:'0 0 40px rgba(0,229,255,0.35)', lineHeight:1 }}>&lt;5ms</div>
+              <div style={{ marginTop:20 }}>
+                <svg viewBox="0 0 200 40" style={{ width:'100%', height:40 }}>
+                  <polyline points="0,30 20,25 40,32 60,18 80,28 100,10 120,22 140,16 160,28 180,14 200,20" fill="none" stroke="#00e5ff" strokeWidth="1.5" strokeOpacity="0.6" />
+                  <polyline points="0,30 20,25 40,32 60,18 80,28 100,10 120,22 140,16 160,28 180,14 200,20 200,40 0,40" fill="#00e5ff" fillOpacity="0.05" />
+                </svg>
+              </div>
             </div>
-          ))}
-        </div>
-      </section>
 
-      {/* ── Bottom CTA ── */}
-      <section style={{
-        maxWidth: '800px',
-        margin: '0 auto',
-        padding: '0 32px 120px',
-        textAlign: 'center',
-      }}>
-        <div className="glass" style={{
-          padding: '60px 48px',
-          background: 'linear-gradient(135deg, rgba(0,212,255,0.05), rgba(191,90,242,0.05))',
-          borderColor: 'rgba(0,212,255,0.15)',
-        }}>
-          <h2 style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(24px, 3vw, 36px)',
-            fontWeight: 800,
-            color: '#e8f4f8',
-            marginBottom: '16px',
-          }}>Ready to protect your AI workspace?</h2>
-          <p style={{ color: '#4a7a8a', fontSize: '13px', marginBottom: '36px', lineHeight: 1.8 }}>
-            Set up in seconds. No configuration needed.
-          </p>
-          <Link href="/workspace" style={{
-            padding: '16px 40px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #00d4ff, #0099bb)',
-            color: '#020818',
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontWeight: 700,
-            fontSize: '15px',
-            textDecoration: 'none',
-            boxShadow: '0 0 40px rgba(0,212,255,0.3)',
-            display: 'inline-block',
-            transition: 'transform 0.2s, box-shadow 0.2s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 0 60px rgba(0,212,255,0.5)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 0 40px rgba(0,212,255,0.3)'; }}
-          >
-            Get Started →
-          </Link>
-        </div>
-      </section>
+            {/* Block rate card */}
+            <div style={{ background:'#0d1826', border:'1px solid rgba(0,229,255,0.08)', borderRadius:14, padding:'36px 32px', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', top:0, left:0, right:0, height:2, background:'linear-gradient(90deg, transparent, rgba(0,255,136,0.4), transparent)' }} />
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:2, color:'#6b9aaa', marginBottom:16 }}>ATTACK BLOCK RATE</div>
+              <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:64, fontWeight:800, color:'#00ff88', textShadow:'0 0 40px rgba(0,255,136,0.35)', lineHeight:1 }}>99.9%</div>
+              <div style={{ marginTop:16, display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ height:4, flex:1, background:'rgba(0,255,136,0.1)', borderRadius:2, overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:'99.9%', background:'#00ff88', boxShadow:'0 0 8px rgba(0,255,136,0.5)', borderRadius:2 }} />
+                </div>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#00ff88' }}>SOC 2 TYPE II CERTIFIED</span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      {/* ── Footer ── */}
-      <footer style={{
-        borderTop: '1px solid rgba(255,255,255,0.05)',
-        padding: '24px 32px',
-        textAlign: 'center',
-        fontSize: '10px',
-        color: '#1a3040',
-        letterSpacing: '2px',
-        fontFamily: "'Space Mono', monospace",
-      }}>
-        SECUREAI WORKSPACE · ALL TRAFFIC MONITORED · ZERO LEAKS GUARANTEED
-      </footer>
+        {/* ── Code integration ── */}
+        <section style={{ maxWidth:900, margin:'0 auto 100px', padding:'0 32px' }}>
+          <div style={{ textAlign:'center', marginBottom:40 }}>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:3, color:'#00e5ff', marginBottom:14 }}>INTEGRATION PATHS</div>
+            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,4vw,38px)', fontWeight:800, letterSpacing:'-0.5px' }}>Three Lines of Code to Active Protection</h2>
+          </div>
+          <div style={{ background:'#080e1a', border:'1px solid rgba(0,229,255,0.1)', borderRadius:14, overflow:'hidden' }}>
+            <div style={{ padding:'12px 20px', borderBottom:'1px solid rgba(255,255,255,0.05)', display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#ff2d55' }} />
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#ffaa00' }} />
+              <div style={{ width:10, height:10, borderRadius:'50%', background:'#00ff88' }} />
+              <span style={{ marginLeft:8, fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#2a4a5a', letterSpacing:1 }}>secure_ai_wrapper.py</span>
+            </div>
+            <div style={{ padding:'28px 28px', fontFamily:"'JetBrains Mono',monospace", fontSize:13, lineHeight:2, overflowX:'auto' }}>
+              <div><span style={{ color:'#6b9aaa' }}>import</span> <span style={{ color:'#00e5ff' }}>secureai</span></div>
+              <div><span style={{ color:'#6b9aaa' }}>from</span> <span style={{ color:'#00e5ff' }}>secureai.guard</span> <span style={{ color:'#6b9aaa' }}>import</span> <span style={{ color:'#e2edf5' }}>OpenAI</span></div>
+              <div style={{ height:16 }} />
+              <div style={{ color:'#2a4a5a' }}># Invisible drop-in replacement</div>
+              <div><span style={{ color:'#e2edf5' }}>guard</span> <span style={{ color:'#6b9aaa' }}>=</span> <span style={{ color:'#e2edf5' }}>secureai</span><span style={{ color:'#6b9aaa' }}>.</span><span style={{ color:'#00e5ff' }}>Guard</span><span style={{ color:'#e2edf5' }}>(api_key=</span><span style={{ color:'#00ff88' }}>"sk-secur_..."</span><span style={{ color:'#e2edf5' }}>)</span></div>
+              <div style={{ height:16 }} />
+              <div style={{ color:'#2a4a5a' }}># Your code runs with invisible security</div>
+              <div><span style={{ color:'#e2edf5' }}>secure_llm</span> <span style={{ color:'#6b9aaa' }}>=</span> <span style={{ color:'#e2edf5' }}>guard</span><span style={{ color:'#6b9aaa' }}>.</span><span style={{ color:'#00e5ff' }}>wrap</span><span style={{ color:'#e2edf5' }}>(OpenAI(temperature=0))</span></div>
+              <div><span style={{ color:'#e2edf5' }}>response</span> <span style={{ color:'#6b9aaa' }}>=</span> <span style={{ color:'#e2edf5' }}>secure_llm</span><span style={{ color:'#6b9aaa' }}>.</span><span style={{ color:'#00e5ff' }}>predict</span><span style={{ color:'#e2edf5' }}>(</span><span style={{ color:'#ff2d55' }}>"Process sensitive user query..."</span><span style={{ color:'#e2edf5' }}>)</span></div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Compliance strip ── */}
+        <div style={{ maxWidth:900, margin:'0 auto 100px', padding:'0 32px' }}>
+          <div style={{ background:'rgba(0,255,136,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:14, padding:'24px 40px', display:'flex', alignItems:'center', gap:32, flexWrap:'wrap', justifyContent:'center' }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:'#2a4a5a', letterSpacing:1 }}>COMPLIANCE READY</span>
+            {['GDPR','SOC2','HIPAA','PCI-DSS'].map(c=>(
+              <div key={c} style={{ display:'flex', alignItems:'center', gap:7 }}>
+                <span style={{ color:'#00ff88', fontSize:12 }}>✓</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'#c8e8d8' }}>{c}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── CTA ── */}
+        <section style={{ textAlign:'center', padding:'60px 32px 100px', borderTop:'1px solid rgba(255,255,255,0.04)', position:'relative' }}>
+          <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:600, height:300, background:'radial-gradient(ellipse, rgba(0,229,255,0.07) 0%, transparent 70%)', pointerEvents:'none' }} />
+          <div style={{ position:'relative' }}>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#6b9aaa', letterSpacing:2.5, marginBottom:18 }}>GET STARTED</div>
+            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(26px,5vw,50px)', fontWeight:800, letterSpacing:'-1px', marginBottom:16 }}>Ready to secure your AI stack?</h2>
+            <p style={{ color:'#6b9aaa', fontSize:15, marginBottom:40 }}>No infrastructure changes. No employee retraining. Just protection.</p>
+            <Link href="/workspace" className="hero-btn-primary" style={{ fontSize:14, padding:'14px 40px' }}>
+              Launch Workspace →
+            </Link>
+          </div>
+        </section>
+
+        {/* ── Footer ── */}
+        <footer style={{ textAlign:'center', padding:'20px 32px', borderTop:'1px solid rgba(255,255,255,0.04)', fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#2a4a5a', letterSpacing:1 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8, maxWidth:900, margin:'0 auto' }}>
+            <span>© 2024 SECUREAI PLATFORM. ALL RIGHTS RESERVED. SOC2 TYPE II CERTIFIED.</span>
+            <div style={{ display:'flex', gap:24 }}>
+              {['Security Policy','Blog','Docs','Enterprise'].map(l=>(
+                <Link key={l} href="#" style={{ color:'#2a4a5a', textDecoration:'none', transition:'color .2s' }}
+                  onMouseEnter={undefined}>{l}</Link>
+              ))}
+            </div>
+          </div>
+        </footer>
+
+      </div>
     </div>
   );
 }

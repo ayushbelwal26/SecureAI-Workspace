@@ -3,15 +3,27 @@
 
 const agentProfiles = {
   emailAgent: {
-    allowed: ['read_email', 'draft_reply', 'search_inbox'],
+    label:      'Email Agent',
+    icon:       '📧',
+    color:      '#00d4ff',
+    dailyLimit: 50,
+    allowed:    ['read_email', 'draft_reply', 'search_inbox'],
     restricted: ['send_bulk', 'delete_all', 'export_contacts', 'forward_all'],
   },
   dataAgent: {
-    allowed: ['read_public_data', 'generate_report', 'search_records'],
+    label:      'Data Agent',
+    icon:       '📊',
+    color:      '#bf5af2',
+    dailyLimit: 30,
+    allowed:    ['read_public_data', 'generate_report', 'search_records'],
     restricted: ['access_passwords', 'export_raw_db', 'delete_records', 'dump_all'],
   },
   codeAgent: {
-    allowed: ['read_code', 'suggest_fix', 'run_tests'],
+    label:      'Code Agent',
+    icon:       '💻',
+    color:      '#00ff88',
+    dailyLimit: 100,
+    allowed:    ['read_code', 'suggest_fix', 'run_tests'],
     restricted: ['deploy_production', 'delete_repo', 'modify_env', 'access_secrets'],
   },
 };

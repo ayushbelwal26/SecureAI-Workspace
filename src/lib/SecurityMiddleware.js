@@ -222,8 +222,37 @@ class SecurityMiddleware {
     }
   }
 
+  /**
+   * Convenience wrapper for file-scan events.
+   * @param {string}  fileName
+   * @param {number}  secretCount    — total secrets found
+   * @param {number}  criticalCount  — subset that are CRITICAL severity
+   */
+  logFileScan(fileName, secretCount, criticalCount) {
+    const status = secretCount > 0 ? 'REDACTED' : 'PASSED';
+    const reason =
+      secretCount > 0
+        ? `${secretCount} secret(s) redacted from "${fileName}" (${criticalCount} critical)`
+        : `"${fileName}" is clean — no secrets detected`;
+    this.log('FILE_SCANNER', status, reason, fileName);
+  }
+
   getLogs() {
     return [...this.logs];
+  }
+
+  getSecurityScore() {
+    const logs = this.logs;
+    if (logs.length === 0) return 100;
+
+    let score = 100;
+    for (const entry of logs) {
+      if (entry.status === 'BLOCKED')  score -= 2;
+      else if (entry.status === 'ANOMALY')  score -= 5;
+      else if (entry.status === 'REDACTED') score -= 0.5;
+    }
+
+    return Math.round(Math.min(100, Math.max(0, score)));
   }
 }
 

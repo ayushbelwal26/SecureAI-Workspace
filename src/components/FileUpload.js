@@ -12,7 +12,7 @@ const PATTERNS = [
   { name: 'Bearer Token',      regex: /Bearer [a-zA-Z0-9\-._~+/]+=*/g,                                        replacement: '[AUTH_TOKEN_REDACTED]'        },
   { name: 'API Key (generic)', regex: /API_KEY[\s:=]+\S+/gi,                                                  replacement: '[API_KEY_REDACTED]'           },
   { name: 'Internal IP',       regex: /\b10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+\b/g,                           replacement: '[INTERNAL_IP_REDACTED]'       },
-  { name: 'Private Key',       regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----/g,                         replacement: '[PRIVATE_KEY_REDACTED]'       },
+  { name: 'Private Key',       regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (RSA |EC |DSA )?PRIVATE KEY-----/g, replacement: '[PRIVATE_KEY_REDACTED]'       },
   { name: 'AWS Access Key',    regex: /AKIA[0-9A-Z]{16}/g,                                                    replacement: '[AWS_KEY_REDACTED]'           },
   { name: 'Database URL',      regex: /mongodb(\+srv)?:\/\/[^\s]+|postgresql:\/\/[^\s]+|mysql:\/\/[^\s]+/gi,  replacement: '[DB_URL_REDACTED]'            },
   { name: 'JWT Secret',        regex: /jwt[_-]?secret[\s:=]+\S+/gi,                                           replacement: '[JWT_SECRET_REDACTED]'        },
@@ -47,8 +47,8 @@ function fmtBytes(n) {
 /* ──────────────────────────────────────────── styles ── */
 const S = {
   root: {
-    background: '#070d14',
-    border: '1px solid #0d2137',
+    background: '#080c12',
+    border: '1px solid #0d1826',
     borderRadius: '12px',
     padding: '28px',
     fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
@@ -69,7 +69,7 @@ const S = {
 
   /* drop zone */
   dropZone: (over) => ({
-    border: `2px dashed ${over ? '#00e5ff' : '#0d2137'}`,
+    border: `2px dashed ${over ? '#00e5ff' : '#0d1826'}`,
     borderRadius: '12px',
     padding: '48px 24px',
     textAlign: 'center',
@@ -107,7 +107,7 @@ const S = {
     border: `1px solid ${
       status === 'clean'  ? '#00ff9d33' :
       status === 'danger' ? '#ff2d5533' :
-      '#0d2137'
+      '#0d1826'
     }`,
     borderRadius: '10px',
     padding: '18px 20px',
@@ -170,8 +170,8 @@ const S = {
   /* preview */
   preview: {
     marginTop: '12px',
-    background: '#060c12',
-    border: '1px solid #0d2137',
+    background: '#070e18',
+    border: '1px solid #0d1826',
     borderRadius: '6px',
     padding: '12px',
     fontSize: '11px',
@@ -225,7 +225,7 @@ const S = {
     marginTop: '24px',
     padding: '14px 20px',
     borderRadius: '8px',
-    border: '1px solid #0d2137',
+    border: '1px solid #0d1826',
     background: '#0a1520',
     display: 'flex',
     alignItems: 'center',
@@ -245,7 +245,7 @@ const S = {
   divider: {
     width: '1px',
     height: '18px',
-    background: '#0d2137',
+    background: '#0d1826',
   },
 };
 
@@ -258,7 +258,7 @@ function cardStatus(file) {
 }
 
 /* ──────────────────────────────────────── component ── */
-export default function FileUpload() {
+export default function FileUpload({ onScanComplete }) {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [scanning, setScanning] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -305,6 +305,25 @@ export default function FileUpload() {
             if (!anyStillScanning) setScanning(false);
             return prev;
           });
+
+          // Fire-and-forget: log scan report to security dashboard
+          const secretCount   = result.flagged.reduce((s, fl) => s + fl.count, 0);
+          const criticalCount = result.flagged.filter((fl) =>
+            ['AWS Access Key', 'Private Key', 'Stripe Secret Key', 'Database URL'].includes(fl.name)
+          ).reduce((s, fl) => s + fl.count, 0);
+          if (onScanComplete) onScanComplete({ fileName: f.name, secretCount, criticalCount, redactedText: result.redacted });
+          fetch('/api/secure-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: '__FILE_SCAN_REPORT__',
+              fileScan: {
+                fileName:      f.name,
+                secretCount,
+                criticalCount,
+              },
+            }),
+          }).catch(() => {});
         }, 1000);
       };
 
@@ -393,6 +412,32 @@ export default function FileUpload() {
         <p style={S.dropMain}>Drop your codebase files here</p>
         <p style={S.dropOr}>or click to browse</p>
         <p style={S.dropHint}>Supports .js .py .env .txt .json .ts .md</p>
+
+        {/* Demo download link — stops propagation so it doesn't open the file picker */}
+        <a
+          href="/demo/sample.env"
+          download="sample.env"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            display: 'inline-block',
+            marginTop: '14px',
+            padding: '6px 14px',
+            borderRadius: '6px',
+            border: '1px solid rgba(255,170,0,0.35)',
+            background: 'rgba(255,170,0,0.08)',
+            color: '#ffaa00',
+            fontFamily: "'JetBrains Mono','Fira Code','Courier New',monospace",
+            fontSize: '10px',
+            fontWeight: 700,
+            letterSpacing: '1px',
+            textDecoration: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          ↓ DOWNLOAD DEMO .env FILE &nbsp;(13 live secrets inside)
+        </a>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -455,15 +500,46 @@ export default function FileUpload() {
                       )}
                     </div>
 
-                    {/* Use in chat button */}
-                    <button
-                      className="fu-use-btn"
-                      style={copiedIndex === idx ? S.useBtnCopied : S.useBtn}
-                      onClick={() => useInChat(idx)}
-                      disabled={copiedIndex === idx}
-                    >
-                      {copiedIndex === idx ? '✓ COPIED TO CLIPBOARD' : '⊕ USE IN CHAT'}
-                    </button>
+                    {/* Use in chat button + Download Redacted button */}
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <button
+                        className="fu-use-btn"
+                        style={copiedIndex === idx ? S.useBtnCopied : S.useBtn}
+                        onClick={() => useInChat(idx)}
+                        disabled={copiedIndex === idx}
+                      >
+                        {copiedIndex === idx ? '✓ COPIED TO CLIPBOARD' : '⊕ USE IN CHAT'}
+                      </button>
+
+                      {!file.scanResult.clean && (() => {
+                        const nameParts  = file.name.split('.');
+                        const ext        = nameParts.length > 1 ? nameParts.pop() : '';
+                        const base       = nameParts.join('.');
+                        const dlName     = ext ? `${base}.redacted.${ext}` : `${file.name}.redacted`;
+                        return (
+                          <button
+                            style={{
+                              ...S.useBtn,
+                              marginTop: S.useBtn.marginTop,
+                              border: '1px solid rgba(255,214,0,0.35)',
+                              background: 'rgba(255,214,0,0.08)',
+                              color: '#ffd600',
+                            }}
+                            onClick={() => {
+                              const blob = new Blob([file.scanResult.redacted], { type: 'text/plain' });
+                              const url  = URL.createObjectURL(blob);
+                              const a    = document.createElement('a');
+                              a.href     = url;
+                              a.download = dlName;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                            }}
+                          >
+                            ↓ DOWNLOAD REDACTED
+                          </button>
+                        );
+                      })()}
+                    </div>
                   </>
                 )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 const STATUS_STYLES = {
   BLOCKED:  { bg: 'rgba(213,0,0,0.14)',   border: 'rgba(213,0,0,0.45)',   text: '#ff5252', dot: '#d50000', leftGlow: '#d50000', label: 'THREAT STOPPED'      },
@@ -16,13 +16,15 @@ const LAYER_ICONS = {
   'ANOMALY_DETECTION': '🔍',
   'INPUT_FILTER':      '🛡',
   'OUTPUT_FILTER':     '✂',
-  'GEMINI':            '✨',
+  'GROK':              '⚡',
   'SYSTEM':            '⚙',
   'AGENT':             '🤖',
 };
 
-function layerIcon(layer = '') {
-  const key = Object.keys(LAYER_ICONS).find((k) => layer.toUpperCase().includes(k));
+function layerIcon(layer) {
+  if (!layer || typeof layer !== 'string') return '◈';
+  const up = layer.toUpperCase();
+  const key = Object.keys(LAYER_ICONS).find((k) => up.includes(k));
   return key ? LAYER_ICONS[key] : '◈';
 }
 
@@ -33,8 +35,8 @@ function Sparkline({ logs }) {
   return (
     <div style={{
       padding: '10px 18px 0',
-      borderBottom: '1px solid #0d2137',
-      background: '#060c13',
+      borderBottom: '1px solid #0d1826',
+      background: '#070e18',
     }}>
       <div style={{ fontSize: '9px', color: '#2e5472', letterSpacing: '1.5px', marginBottom: '6px' }}>
         REQUEST VOLUME (LAST 10 EVENTS)
@@ -47,7 +49,7 @@ function Sparkline({ logs }) {
           const log    = last10[9 - i];          // oldest first → left
           const exists = Boolean(log);
           const h      = exists ? Math.max(6, Math.round(maxH * ((i + 1) / 10))) : 2;
-          const color  = !exists ? '#0d2137'
+          const color  = !exists ? '#0d1826'
             : log.status === 'BLOCKED'  ? '#ff5252'
             : log.status === 'ANOMALY'  ? '#ff6d00'
             : log.status === 'REDACTED' ? '#ffd600'
@@ -70,7 +72,7 @@ function Sparkline({ logs }) {
 
 export default function SecurityDashboard() {
   const [logs,      setLogs]      = useState([]);
-  const [stats,     setStats]     = useState({ total: 0, blocked: 0, redacted: 0, anomalies: 0 });
+  const [stats,     setStats]     = useState({ blocked: 0, redacted: 0, anomalies: 0, score: 100 });
   const [isLive,    setIsLive]    = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const tableRef    = useRef(null);
@@ -78,25 +80,22 @@ export default function SecurityDashboard() {
 
   useEffect(() => { setIsMounted(true); }, []);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const res  = await fetch('/api/secure-chat');
       const data = await res.json();
       if (data.logs) {
-        setLogs([...data.logs].reverse());
-        computeStats(data.logs);
+        const raw      = data.logs;
+        const blocked  = raw.filter((l) => l.status === 'BLOCKED').length;
+        const redacted = raw.filter((l) => l.status === 'REDACTED').length;
+        const anomalies = raw.filter((l) => l.status === 'ANOMALY').length;
+        const total    = raw.length || 1;
+        const score    = Math.max(0, Math.round(100 - ((blocked + anomalies) / total) * 100));
+        setLogs([...raw].reverse());
+        setStats({ blocked, redacted, anomalies, score });
       }
     } catch (_) {}
-  };
-
-  const computeStats = (rawLogs) => {
-    setStats({
-      total:     rawLogs.length,
-      blocked:   rawLogs.filter((l) => l.status === 'BLOCKED').length,
-      redacted:  rawLogs.filter((l) => l.status === 'REDACTED').length,
-      anomalies: rawLogs.filter((l) => l.status === 'ANOMALY').length,
-    });
-  };
+  }, []);
 
   useEffect(() => { fetchLogs(); }, []);
 
@@ -107,20 +106,22 @@ export default function SecurityDashboard() {
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
-  }, [isLive]);
+  }, [isLive, fetchLogs]);
+
+  const scoreColor = stats.score >= 90 ? '#00e676' : stats.score >= 70 ? '#ffd600' : '#ff5252';
 
   const STAT_CARDS = [
-    { label: 'Total Requests',   value: stats.total,     color: '#00e5ff', icon: '⬡' },
-    { label: 'Blocked Attacks',  value: stats.blocked,   color: '#ff5252', icon: '⛔' },
-    { label: 'Outputs Redacted', value: stats.redacted,  color: '#ffd600', icon: '✂' },
-    { label: 'Anomalies',        value: stats.anomalies, color: '#ff6d00', icon: '⚡' },
+    { label: 'Security Score',   value: `${stats.score}%`, color: scoreColor,  icon: '🛡' },
+    { label: 'Blocked Attacks',  value: stats.blocked,     color: '#ff5252',   icon: '⛔' },
+    { label: 'Outputs Redacted', value: stats.redacted,    color: '#ffd600',   icon: '✂' },
+    { label: 'Anomalies',        value: stats.anomalies,   color: '#ff6d00',   icon: '⚡' },
   ];
 
   return (
     <div style={{
-      fontFamily: "'DM Mono', monospace",
-      background: '#070d14',
-      border: '1px solid #0d2137',
+      fontFamily: "'JetBrains Mono', monospace",
+      background: '#080c12',
+      border: '1px solid #0d1826',
       borderRadius: '12px',
       overflow: 'hidden',
       display: 'flex',
@@ -131,8 +132,8 @@ export default function SecurityDashboard() {
       {/* ── Header ── */}
       <div style={{
         padding: '14px 18px',
-        borderBottom: '1px solid #0d2137',
-        background: '#060c13',
+        borderBottom: '1px solid #0d1826',
+        background: '#070e18',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       }}>
         <div>
@@ -151,7 +152,7 @@ export default function SecurityDashboard() {
               background: 'rgba(255,82,82,0.08)',
               border: '1px solid rgba(255,82,82,0.25)',
               borderRadius: '6px', color: '#ff5252',
-              fontFamily: "'DM Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: '9px', padding: '5px 10px',
               cursor: 'pointer', letterSpacing: '1px',
               transition: 'all 0.15s',
@@ -168,7 +169,7 @@ export default function SecurityDashboard() {
               border: `1px solid ${isLive ? 'rgba(0,230,118,0.3)' : 'rgba(213,0,0,0.3)'}`,
               borderRadius: '6px',
               color: isLive ? '#00e676' : '#ff5252',
-              fontFamily: "'DM Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: '10px', padding: '5px 12px',
               cursor: 'pointer', letterSpacing: '1px',
             }}
@@ -184,12 +185,12 @@ export default function SecurityDashboard() {
       {/* ── Stat cards ── */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr',
-        gap: '1px', background: '#0d2137',
-        borderBottom: '1px solid #0d2137',
+        gap: '1px', background: '#0d1826',
+        borderBottom: '1px solid #0d1826',
       }}>
         {STAT_CARDS.map((card) => (
           <div key={card.label} style={{
-            padding: '12px 14px', background: '#070d14',
+            padding: '12px 14px', background: '#080c12',
             display: 'flex', flexDirection: 'column', gap: '4px',
           }}>
             <div style={{ fontSize: '9px', color: '#2e4a62', letterSpacing: '1px' }}>
@@ -206,7 +207,7 @@ export default function SecurityDashboard() {
       </div>
 
       {/* ── Log list ── */}
-      <div ref={tableRef} style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+      <div ref={tableRef} style={{ maxHeight: '420px', overflowY: 'auto', padding: '8px' }}>
         {logs.length === 0 ? (
           <div style={{
             color: '#1e3347', fontSize: '12px',
@@ -228,7 +229,7 @@ export default function SecurityDashboard() {
                 borderLeft: `3px solid ${s.leftGlow}`,
                 boxShadow: `inset 3px 0 10px ${s.leftGlow}18`,
                 fontSize: '11px',
-                animation: i === 0 ? 'fadein 0.4s ease' : undefined,
+                animation: i === 0 ? 'sdFadeIn 0.4s ease' : undefined,
               }}>
                 {/* Status + time */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -275,7 +276,7 @@ export default function SecurityDashboard() {
       </div>
 
       <style>{`
-        @keyframes fadein { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes sdFadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

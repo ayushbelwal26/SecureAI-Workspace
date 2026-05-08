@@ -287,20 +287,45 @@ export default function AgentControl() {
 
       {/* permission grid */}
       {agentProfiles ? (
-        <div style={styles.permGrid}>
-          <div style={styles.permCol}>
+        <>
+          {/* ── Daily limit bar ── */}
+          {profile.dailyLimit && (
+            <div style={{
+              marginBottom: '14px',
+              padding: '10px 14px',
+              borderRadius: '7px',
+              border: '1px solid rgba(0,229,255,0.15)',
+              background: 'rgba(0,229,255,0.04)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}>
+              <div style={{ fontSize: '11px', color: '#00e5ff', fontWeight: 700, letterSpacing: '1.5px' }}>
+                DAILY LIMIT:&nbsp;
+                <span style={{ fontSize: '15px' }}>{profile.dailyLimit}</span>
+                &nbsp;actions/day
+              </div>
+              <div style={{ fontSize: '10px', color: '#2e5472', letterSpacing: '0.5px' }}>
+                · Enforced at infrastructure level · Resets midnight UTC
+              </div>
+            </div>
+          )}
+
+          <div style={styles.permGrid}>
+            <div style={styles.permCol}>
             <p style={styles.permColTitle('#00ff88')}>✓ Allowed Actions</p>
             {profile.allowed.map((a) => (
               <span key={a} style={styles.tag('#00ff88', 'rgba(0,255,136,0.08)')}>{a}</span>
             ))}
           </div>
-          <div style={styles.permCol}>
-            <p style={styles.permColTitle('#ff4466')}>⛔ Restricted Actions</p>
-            {profile.restricted.map((a) => (
-              <span key={a} style={styles.tag('#ff4466', 'rgba(255,68,102,0.08)')}>{a}</span>
-            ))}
+            <div style={styles.permCol}>
+              <p style={styles.permColTitle('#ff4466')}>⛔ Restricted Actions</p>
+              {profile.restricted.map((a) => (
+                <span key={a} style={styles.tag('#ff4466', 'rgba(255,68,102,0.08)')}>{a}</span>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       ) : (
         <p style={styles.emptyState}>Loading profiles…</p>
       )}
@@ -383,6 +408,16 @@ export default function AgentControl() {
               <div style={styles.resultField}>
                 <p style={styles.resultLabel}>Threat Level</p>
                 <span style={styles.threatBadge}>🔴 {result.threatLevel}</span>
+              </div>
+            )}
+            {result.allowed && typeof result.dailyRemaining === 'number' && (
+              <div style={styles.resultField}>
+                <p style={styles.resultLabel}>Daily Remaining</p>
+                <p style={styles.resultValue(
+                  result.dailyRemaining >= 10 ? '#00ff88' : '#ff6d00'
+                )}>
+                  {result.dailyRemaining} actions left today
+                </p>
               </div>
             )}
           </div>

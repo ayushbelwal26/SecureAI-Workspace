@@ -69,13 +69,9 @@ const ATTACKS = [
   },
 ];
 
-function generateSessionId() {
-  return 'atk-' + Math.random().toString(36).slice(2, 11);
-}
-
-const SESSION_ID = generateSessionId();
 
 export default function AttackSimulator() {
+  const [sessionId] = useState(() => 'atk-' + Math.random().toString(36).slice(2, 11));
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(null); // attack id currently loading
   const [attempted, setAttempted] = useState(0);
@@ -95,7 +91,7 @@ export default function AttackSimulator() {
       const res = await fetch('/api/secure-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: attack.payload, sessionId: SESSION_ID }),
+        body: JSON.stringify({ message: attack.payload, sessionId }),
       });
       const data = await res.json();
       const elapsed = Math.round(performance.now() - start);
@@ -130,9 +126,9 @@ export default function AttackSimulator() {
   return (
     <div
       style={{
-        fontFamily: "'DM Mono', monospace",
-        background: '#070d14',
-        border: '1px solid #0d2137',
+        fontFamily: "'JetBrains Mono', monospace",
+        background: '#080c12',
+        border: '1px solid #0d1826',
         borderRadius: '12px',
         overflow: 'hidden',
       }}
@@ -141,8 +137,8 @@ export default function AttackSimulator() {
       <div
         style={{
           padding: '14px 20px',
-          borderBottom: '1px solid #0d2137',
-          background: '#060c13',
+          borderBottom: '1px solid #0d1826',
+          background: '#070e18',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
@@ -161,7 +157,7 @@ export default function AttackSimulator() {
             <div style={{ color: '#ffd600', fontSize: '18px', fontWeight: 700 }}>{attempted}</div>
             <div style={{ color: '#2e4a62', fontSize: '9px', letterSpacing: '1px' }}>ATTEMPTS</div>
           </div>
-          <div style={{ width: '1px', background: '#0d2137' }} />
+          <div style={{ width: '1px', background: '#0d1826' }} />
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: '#00e676', fontSize: '18px', fontWeight: 700 }}>{blocked}</div>
             <div style={{ color: '#2e4a62', fontSize: '9px', letterSpacing: '1px' }}>STOPPED</div>
@@ -200,9 +196,9 @@ export default function AttackSimulator() {
                   ? `${attack.color}22`
                   : activeAttack?.id === attack.id
                   ? `${attack.color}18`
-                  : '#0b1929',
+                  : '#080e1a',
               border: `1px solid ${
-                activeAttack?.id === attack.id ? `${attack.color}66` : '#0d2137'
+                activeAttack?.id === attack.id ? `${attack.color}66` : '#0d1826'
               }`,
               borderRadius: '8px',
               padding: '12px 14px',
@@ -221,9 +217,9 @@ export default function AttackSimulator() {
             onMouseLeave={(e) => {
               if (!loading) {
                 e.currentTarget.style.borderColor =
-                  activeAttack?.id === attack.id ? `${attack.color}66` : '#0d2137';
+                  activeAttack?.id === attack.id ? `${attack.color}66` : '#0d1826';
                 e.currentTarget.style.background =
-                  activeAttack?.id === attack.id ? `${attack.color}18` : '#0b1929';
+                  activeAttack?.id === attack.id ? `${attack.color}18` : '#080e1a';
               }
             }}
           >
