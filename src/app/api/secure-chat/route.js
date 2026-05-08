@@ -11,7 +11,8 @@ export async function GET() {
 
 export async function POST(request) {
   try {
-    const { message, sessionId, fileScan, history } = await request.json();
+    const { message, sessionId, fileScan, history, model } = await request.json();
+    const selectedModel = model || 'google/gemini-2.5-flash';
 
     // ── Layer 0: File scan report (fire-and-forget from FileUpload) ────────
     if (fileScan) {
@@ -82,7 +83,7 @@ export async function POST(request) {
           'X-Title': 'SecureAI',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: selectedModel,
           messages,
           max_tokens: 512,
         }),

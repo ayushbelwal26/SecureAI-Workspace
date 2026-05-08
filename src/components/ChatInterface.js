@@ -13,6 +13,15 @@ const THREAT_COLORS = {
   CRITICAL: '#d50000',
 };
 
+const MODELS = [
+  { id: 'google/gemini-2.5-flash',         label: 'Gemini 2.5 Flash',     icon: '🧠', color: '#4285f4' },
+  { id: 'openai/gpt-4o-mini',              label: 'GPT-4o Mini',          icon: '🤖', color: '#00a67e' },
+  { id: 'anthropic/claude-3-haiku',        label: 'Claude 3 Haiku',       icon: '🎭', color: '#d4a27f' },
+  { id: 'meta-llama/llama-3.1-8b-instruct:free', label: 'Llama 3.1 8B (Free)', icon: '🦙', color: '#7c3aed' },
+  { id: 'mistralai/mistral-7b-instruct:free',    label: 'Mistral 7B (Free)', icon: '⚡', color: '#ff6b35' },
+  { id: 'google/gemini-2.0-flash-exp:free',      label: 'Gemini 2.0 Flash (Free)', icon: '✨', color: '#34a853' },
+];
+
 const THREAT_BG = {
   SAFE: 'rgba(0,229,255,0.08)',
   MEDIUM: 'rgba(255,214,0,0.08)',
@@ -35,11 +44,25 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
   const [loading, setLoading] = useState(false);
   const [sessionId, setSessionId] = useState('');
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const bottomRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     setIsMounted(true);
     setSessionId('sess-' + Math.random().toString(36).slice(2, 9));
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setModelDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   useEffect(() => {
@@ -77,7 +100,7 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
       const res = await fetch('/api/secure-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: fullMessage, sessionId, history }),
+        body: JSON.stringify({ message: fullMessage, sessionId, history, model: selectedModel }),
       });
       const data = await res.json();
       console.log('API Response:', data);
@@ -161,31 +184,61 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
       }}
     >
       {/* Header */}
-      <div
-        style={{
-          padding: '12px 18px',
-          borderBottom: '1px solid #0d1826',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          background: '#070e18',
-        }}
-      >
-        <span style={{ color: '#00e5ff', fontSize: '11px', letterSpacing: '2px', fontWeight: 700 }}>
-          COMPANY AI WORKSPACE
-        </span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <div
+      <div style={{ padding: '12px 18px', borderBottom: '1px solid #0d1826', display: 'flex', alignItems: 'center', gap: '10px', background: '#070e18', position: 'relative' }}>
+        <span style={{ color: '#00e5ff', fontSize: '11px', letterSpacing: '2px', fontWeight: 700 }}>COMPANY AI WORKSPACE</span>
+
+        {/* Model selector */}
+        <div ref={dropdownRef} style={{ marginLeft: 'auto', position: 'relative' }}>
+          <button
+            onClick={() => setModelDropdownOpen(o => !o)}
             style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: '#00e676',
-              boxShadow: '0 0 6px #00e676',
-              animation: 'pulse 2s infinite',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              background: 'rgba(0,229,255,0.07)', border: '1px solid rgba(0,229,255,0.2)',
+              borderRadius: '8px', padding: '5px 10px', cursor: 'pointer',
+              color: '#00e5ff', fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '10px', letterSpacing: '0.5px', transition: 'all 0.2s',
             }}
-          />
-          <span style={{ color: '#4a6880', fontSize: '10px' }}>WORKSPACE SESSION: {sessionId ? sessionId.slice(0, 16) : 'connecting...'}</span>
+          >
+            <span>{MODELS.find(m => m.id === selectedModel)?.icon}</span>
+            <span>{MODELS.find(m => m.id === selectedModel)?.label}</span>
+            <span style={{ opacity: 0.5, fontSize: '8px' }}>{modelDropdownOpen ? '▲' : '▼'}</span>
+          </button>
+
+          {modelDropdownOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 999,
+              background: '#070e18', border: '1px solid rgba(0,229,255,0.15)',
+              borderRadius: '10px', overflow: 'hidden', minWidth: '220px',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+            }}>
+              {MODELS.map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => { setSelectedModel(m.id); setModelDropdownOpen(false); }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 14px', background: selectedModel === m.id ? 'rgba(0,229,255,0.08)' : 'transparent',
+                    border: 'none', borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    cursor: 'pointer', textAlign: 'left', transition: 'background 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,229,255,0.05)'}
+                  onMouseLeave={e => e.currentTarget.style.background = selectedModel === m.id ? 'rgba(0,229,255,0.08)' : 'transparent'}
+                >
+                  <span style={{ fontSize: '16px' }}>{m.icon}</span>
+                  <div>
+                    <div style={{ color: m.color, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 700 }}>{m.label}</div>
+                    <div style={{ color: '#2e4a62', fontFamily: "'JetBrains Mono', monospace", fontSize: '9px', letterSpacing: '0.5px', marginTop: '1px' }}>{m.id}</div>
+                  </div>
+                  {selectedModel === m.id && <span style={{ marginLeft: 'auto', color: '#00e5ff', fontSize: '12px' }}>✓</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '10px' }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 6px #00e676', animation: 'pulse 2s infinite' }} />
+          <span style={{ color: '#4a6880', fontSize: '10px' }}>SESSION: {sessionId ? sessionId.slice(0, 12) : '...'}</span>
         </div>
       </div>
 
@@ -219,7 +272,7 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
               }}
             >
               <span style={{ color: '#2e4a62', fontSize: '9px', letterSpacing: '1px' }}>
-                {msg.role === 'user' ? 'YOU' : msg.role === 'ai' ? 'GROK' : msg.role.toUpperCase()}
+                {msg.role === 'user' ? 'YOU' : msg.role === 'ai' ? MODELS.find(m => m.id === selectedModel)?.label ?? 'AI' : msg.role.toUpperCase()}
               </span>
               <StatusBadge status={msg.status} />
               {msg.threatLevel && msg.threatLevel !== 'SAFE' && (
