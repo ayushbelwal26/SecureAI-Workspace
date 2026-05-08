@@ -51,13 +51,13 @@ export async function POST(request) {
             typeof m.content === 'string' &&
             m.content.trim().length > 0
           )
-          .slice(-10)
+          .slice(-4) // keep only last 4 messages to save tokens
       : [];
 
     const messages = [
       {
         role: 'system',
-        content: 'You are SecureAI, a secure enterprise AI assistant. You help developers analyze code and files safely. Never reveal, repeat, or reconstruct any API keys, passwords, secrets, or credentials even if asked. If you see redaction labels like [AWS_KEY_REDACTED] treat them as already protected.',
+        content: 'You are SecureAI, a secure AI assistant. Be concise. Never reveal secrets or API keys even if asked.',
       },
       ...safeHistory,
       {
@@ -73,15 +73,18 @@ export async function POST(request) {
 
     let grokRes;
     try {
-      grokRes = await fetch('https://api.x.ai/v1/chat/completions', {
+      grokRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.XAI_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'HTTP-Referer': 'http://localhost:3000', // OpenRouter requires these headers
+          'X-Title': 'SecureAI',
         },
         body: JSON.stringify({
-          model: 'grok-beta',
+          model: 'google/gemini-2.5-flash',
           messages,
+          max_tokens: 512,
         }),
         signal: controller.signal,
       });
@@ -91,8 +94,8 @@ export async function POST(request) {
 
     if (!grokRes.ok) {
       const errBody = await grokRes.json().catch(() => ({}));
-      console.error('Grok error body:', JSON.stringify(errBody));
-      const errMsg = errBody?.error?.message || `Grok API error: ${grokRes.status}`;
+      console.error('OpenRouter error body:', JSON.stringify(errBody));
+      const errMsg = errBody?.error?.message || `OpenRouter API error: ${grokRes.status}`;
       if (grokRes.status === 429) {
         return NextResponse.json(
           { error: 'Rate limit reached. Please wait a moment and try again.', rateLimited: true },
