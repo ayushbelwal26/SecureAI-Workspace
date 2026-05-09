@@ -4,6 +4,39 @@ import SecurityMiddleware from '@/lib/SecurityMiddleware';
 // Module-level middleware instance so logs accumulate across requests
 const middleware = new SecurityMiddleware();
 
+async function fetchCreditSnapshot(apiKey) {
+  if (!apiKey) return null;
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/auth/key', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+    });
+    if (!res.ok) return null;
+
+    const payload = await res.json();
+    const data = payload?.data || {};
+
+    const rawLimit = data?.limit;
+    const usage = Number(data?.usage) || 0;
+    // Fallback to a limit of $5.00 if the key has no hard limit set
+    const limit = rawLimit ? Number(rawLimit) : 5.00;
+
+    // Convert to a gamified "Credit" system where $1 = 10,000 credits
+    const MULTIPLIER = 10000;
+
+    return {
+      totalCredits: Math.floor(limit * MULTIPLIER),
+      exhaustedCredits: Math.floor(usage * MULTIPLIER),
+      remainingCredits: Math.floor(Math.max(limit - usage, 0) * MULTIPLIER),
+      currency: 'CREDITS',
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
 export async function GET() {
   // Log polling endpoint for the SecurityDashboard
   return NextResponse.json({ logs: middleware.getLogs() });
@@ -13,6 +46,7 @@ export async function POST(request) {
   try {
     const { message, sessionId, fileScan, history, model } = await request.json();
     const selectedModel = model || 'google/gemini-2.5-flash';
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     // ── Layer 0: File scan report (fire-and-forget from FileUpload) ────────
     if (fileScan) {
@@ -30,6 +64,7 @@ export async function POST(request) {
     const inputResult = middleware.analyzeInput(message);
 
     if (inputResult.blocked) {
+      const credits = await fetchCreditSnapshot(apiKey);
       return NextResponse.json(
         {
           blocked: true,
@@ -38,6 +73,7 @@ export async function POST(request) {
           flags: inputResult.flags,
           securityLog: middleware.getLogs(),
           anomaly: anomalyResult,
+          credits,
         },
         { status: 200 }
       );
@@ -78,7 +114,7 @@ export async function POST(request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           'HTTP-Referer': 'http://localhost:3000', // OpenRouter requires these headers
           'X-Title': 'SecureAI',
         },
@@ -108,6 +144,7 @@ export async function POST(request) {
 
     const grokData = await grokRes.json();
     const text = grokData.choices?.[0]?.message?.content ?? '';
+    const credits = await fetchCreditSnapshot(apiKey);
 
     // ── Layer 4: Output analysis ────────────────────────────────────────
     const outputCheck = middleware.analyzeOutput(text);
@@ -118,6 +155,8 @@ export async function POST(request) {
       clean: outputCheck.clean,
       flagged: outputCheck.flagged,
       securityLog: middleware.getLogs(),
+      usage: grokData.usage || { total_tokens: 0, prompt_tokens: 0, completion_tokens: 0 },
+      credits,
     });
   } catch (error) {
     console.error('secure-chat error:', error);

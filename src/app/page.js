@@ -166,7 +166,7 @@ export default function HomePage() {
               <p style={{ color:'#6b9aaa', fontSize:14, lineHeight:1.8 }}>Data packets stream through the shield, exit clean. API keys, emails, SSNs — detected and masked before leaving your infrastructure.</p>
               <div style={{ marginTop:24, display:'flex', gap:12, alignItems:'center' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#38bdf8', boxShadow:'0 0 12px #38bdf8' }} />
-                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#38bdf8', letterSpacing:1.5 }}>13 SECRET PATTERNS ACTIVE</span>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#38bdf8', letterSpacing:1.5 }}>40+ SECRET PATTERNS ACTIVE</span>
               </div>
             </div>
           </div>
@@ -205,7 +205,7 @@ export default function HomePage() {
             {[
               { value:'99.9%', label:'Attack Block Rate' },
               { value:'<5ms',  label:'Added Latency' },
-              { value:'13',    label:'Secret Patterns' },
+              { value:'40+',   label:'Secret Patterns' },
               { value:'0',     label:'Bytes Leaked' },
             ].map((s,i)=>(
               <div key={i} className="stat-item" style={{ padding:'28px 20px', textAlign:'center', background:'rgba(8,12,18,0.8)' }}>

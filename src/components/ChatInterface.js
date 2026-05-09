@@ -46,6 +46,8 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
   const [isMounted, setIsMounted] = useState(false);
   const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [creditStats, setCreditStats] = useState(null);
+  const [sessionTokens, setSessionTokens] = useState(0);
   const bottomRef = useRef(null);
   const dropdownRef = useRef(null);
 
@@ -118,6 +120,9 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
       }
 
       if (errorMessage) {
+        if (data.credits) {
+          setCreditStats(data.credits);
+        }
         setMessages((prev) => [
           ...prev,
           {
@@ -133,6 +138,13 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
         return;
       }
 
+      if (data.credits) {
+        setCreditStats(data.credits);
+      }
+      if (data.usage?.total_tokens) {
+        setSessionTokens(prev => prev + data.usage.total_tokens);
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -144,6 +156,7 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
           threatLevel: data.threatLevel || 'SAFE',
           sanitized: data.clean === false,
           flagged: data.flagged || [],
+          usage: data.usage?.total_tokens || 0,
         },
       ]);
     } catch (err) {
@@ -240,6 +253,20 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 6px #00e676', animation: 'pulse 2s infinite' }} />
           <span style={{ color: '#4a6880', fontSize: '10px' }}>SESSION: {sessionId ? sessionId.slice(0, 12) : '...'}</span>
         </div>
+
+        {/* Compact Credit Counter */}
+        <div style={{ 
+          display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '12px', 
+          background: 'rgba(0,229,255,0.05)', border: '1px solid rgba(0,229,255,0.15)', 
+          borderRadius: '6px', padding: '4px 8px' 
+        }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          <span style={{ color: '#00e5ff', fontSize: '10px', fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, letterSpacing: '0.5px' }}>
+            {sessionTokens.toLocaleString()} <span style={{ color: '#4a6880', fontWeight: 400 }}>/ {creditStats ? Number(creditStats.totalCredits).toLocaleString() : '50,000'}</span>
+          </span>
+        </div>
       </div>
 
       {/* Messages */}
@@ -277,6 +304,11 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
               <StatusBadge status={msg.status} />
               {msg.threatLevel && msg.threatLevel !== 'SAFE' && (
                 <ThreatBadge level={msg.threatLevel} />
+              )}
+              {msg.usage > 0 && (
+                <span style={{ color: '#00e5ff', fontSize: '9px', background: 'rgba(0,229,255,0.08)', padding: '1px 5px', borderRadius: '3px', border: '1px solid rgba(0,229,255,0.2)', letterSpacing: '1px' }}>
+                  ⚡ {msg.usage}
+                </span>
               )}
               <span style={{ color: '#1e3347', fontSize: '9px' }}>
                 {isMounted ? new Date(msg.timestamp).toLocaleTimeString() : '--:--'}
