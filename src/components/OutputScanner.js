@@ -27,7 +27,7 @@ const PATTERNS = [
   { name: 'Google API Key',        regex: /AIza[0-9A-Za-z\-_]{10,}/g,                          replacement: '[GOOGLE_API_KEY_REDACTED]' },
   { name: 'OpenAI API Key',        regex: /sk-[A-Za-z0-9]{20,}/g,                              replacement: '[OPENAI_KEY_REDACTED]' },
   { name: 'AWS Access Key ID',     regex: /AKIA[0-9A-Z]{16}/g,                                 replacement: '[AWS_KEY_REDACTED]' },
-  { name: 'AWS Secret Access Key', regex: /(?i)aws_secret_access_key\s*[:=]\s*['"]?([a-zA-Z0-9/+=]{40})['"]?/g, replacement: '[AWS_SECRET_REDACTED]' },
+  { name: 'AWS Secret Access Key', regex: /aws_secret_access_key\s*[:=]\s*['"]?[a-zA-Z0-9/+=]{40}['"]?/gi, replacement: '[AWS_SECRET_REDACTED]' },
   { name: 'Stripe Live Secret Key',regex: /sk_live_[a-zA-Z0-9]{8,}/g,                            replacement: '[STRIPE_LIVE_KEY_REDACTED]' },
   { name: 'Stripe Test Secret Key',regex: /sk_test_[a-zA-Z0-9]{8,}/g,                            replacement: '[STRIPE_TEST_KEY_REDACTED]' },
   { name: 'Private Key (PEM)',     regex: /-----BEGIN (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?-----[\s\S]*?-----END (RSA |EC |DSA |OPENSSH |PGP )?PRIVATE KEY(?: BLOCK)?-----/g, replacement: '[PRIVATE_KEY_REDACTED]' },

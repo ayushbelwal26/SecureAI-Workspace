@@ -39,7 +39,7 @@ export const SECRET_PATTERNS = [
     id:        'aws_secret_key',
     name:      'AWS Secret Access Key',
     severity:  'CRITICAL',
-    regex:     /(?i)aws_secret_access_key\s*[:=]\s*['"]?([a-zA-Z0-9/+=]{40})['"]?/g,
+    regex:     /aws_secret_access_key\s*[:=]\s*['"]?[a-zA-Z0-9/+=]{40}['"]?/gi,
     redaction: '[AWS_SECRET_REDACTED]',
     why:       'AWS secret key corresponding to an access key.',
   },
