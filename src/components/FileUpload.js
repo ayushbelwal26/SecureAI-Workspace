@@ -1,35 +1,28 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { SECRET_PATTERNS } from '@/lib/patterns';
 
 /* ─────────────────────────────────────────── scan patterns ── */
-// All 7 OutputScanner patterns + 4 file-specific extras
-const PATTERNS = [
-  { name: 'Google API Key',    regex: /AIza[0-9A-Za-z\-_]{10,}/g,                                            replacement: '[GOOGLE_API_KEY_REDACTED]'  },
-  { name: 'Password',          regex: /password[\s:=]+\S+/gi,                                                 replacement: '[PASSWORD_REDACTED]'         },
-  { name: 'Credit Card',       regex: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,                        replacement: '[CARD_NUMBER_REDACTED]'       },
-  { name: 'SSN',               regex: /\b\d{3}-\d{2}-\d{4}\b/g,                                              replacement: '[SSN_REDACTED]'               },
-  { name: 'Bearer Token',      regex: /Bearer [a-zA-Z0-9\-._~+/]+=*/g,                                        replacement: '[AUTH_TOKEN_REDACTED]'        },
-  { name: 'API Key (generic)', regex: /API_KEY[\s:=]+\S+/gi,                                                  replacement: '[API_KEY_REDACTED]'           },
-  { name: 'Internal IP',       regex: /\b10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+\b/g,                           replacement: '[INTERNAL_IP_REDACTED]'       },
-  { name: 'Private Key',       regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (RSA |EC |DSA )?PRIVATE KEY-----/g, replacement: '[PRIVATE_KEY_REDACTED]'       },
-  { name: 'AWS Access Key',    regex: /AKIA[0-9A-Z]{16}/g,                                                    replacement: '[AWS_KEY_REDACTED]'           },
-  { name: 'Database URL',      regex: /mongodb(\+srv)?:\/\/[^\s]+|postgresql:\/\/[^\s]+|mysql:\/\/[^\s]+/gi,  replacement: '[DB_URL_REDACTED]'            },
-  { name: 'JWT Secret',        regex: /jwt[_-]?secret[\s:=]+\S+/gi,                                           replacement: '[JWT_SECRET_REDACTED]'        },
-  { name: 'Stripe Secret Key', regex: /sk_live_[a-zA-Z0-9]{8,}/g,                                             replacement: '[STRIPE_KEY_REDACTED]'        },
-  { name: 'Stripe Test Key',   regex: /sk_test_[a-zA-Z0-9]{8,}/g,                                             replacement: '[STRIPE_KEY_REDACTED]'        },
-];
+const PATTERNS = SECRET_PATTERNS.map((p) => ({
+  id: p.id,
+  name: p.name,
+  severity: p.severity,
+  regex: p.regex,
+  replacement: p.redaction,
+}));
+const PATTERN_COUNT = PATTERNS.length;
 
 /* ─────────────────────────────────────── scan a single file ── */
 function scanContent(raw) {
   let redacted = raw;
   const flagged = [];
 
-  PATTERNS.forEach(({ name, regex, replacement }) => {
+  PATTERNS.forEach(({ id, name, severity, regex, replacement }) => {
     const r = new RegExp(regex.source, regex.flags);
     const matches = raw.match(r);
     if (matches && matches.length > 0) {
-      flagged.push({ name, count: matches.length });
+      flagged.push({ id, name, severity, count: matches.length });
       redacted = redacted.replace(new RegExp(regex.source, regex.flags), replacement);
     }
   });
@@ -308,9 +301,9 @@ export default function FileUpload({ onScanComplete }) {
 
           // Fire-and-forget: log scan report to security dashboard
           const secretCount   = result.flagged.reduce((s, fl) => s + fl.count, 0);
-          const criticalCount = result.flagged.filter((fl) =>
-            ['AWS Access Key', 'Private Key', 'Stripe Secret Key', 'Database URL'].includes(fl.name)
-          ).reduce((s, fl) => s + fl.count, 0);
+          const criticalCount = result.flagged
+            .filter((fl) => fl.severity === 'CRITICAL')
+            .reduce((s, fl) => s + fl.count, 0);
           if (onScanComplete) onScanComplete({ fileName: f.name, secretCount, criticalCount, redactedText: result.redacted });
           fetch('/api/secure-chat', {
             method: 'POST',
@@ -394,7 +387,7 @@ export default function FileUpload({ onScanComplete }) {
 
       {/* ── Header ── */}
       <p style={S.title}>🛡 FILE UPLOAD SCANNER</p>
-      <p style={S.subtitle}>Scans files for secrets before they reach AI — redacts automatically</p>
+      <p style={S.subtitle}>Scans files with {PATTERN_COUNT}+ regex patterns before they reach AI — redacts automatically</p>
 
       {/* ── Drop Zone ── */}
       <div
@@ -411,7 +404,7 @@ export default function FileUpload({ onScanComplete }) {
         <span style={S.cloudIcon}>☁</span>
         <p style={S.dropMain}>Drop your codebase files here</p>
         <p style={S.dropOr}>or click to browse</p>
-        <p style={S.dropHint}>Supports .js .py .env .txt .json .ts .md</p>
+        <p style={S.dropHint}>Accepts all file types (text files scan best) · {PATTERN_COUNT}+ detection patterns active</p>
 
         {/* Demo download link — stops propagation so it doesn't open the file picker */}
         <a
@@ -435,14 +428,13 @@ export default function FileUpload({ onScanComplete }) {
             transition: 'all 0.15s',
           }}
         >
-          ↓ DOWNLOAD DEMO .env FILE &nbsp;(13 live secrets inside)
+          ↓ DOWNLOAD DEMO .env FILE &nbsp;({PATTERN_COUNT}+ live secrets detectable)
         </a>
 
         <input
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".js,.py,.env,.txt,.json,.ts,.md,.jsx,.tsx,.yaml,.yml,.sh,.css,.html,.toml,.cfg,.ini"
           style={{ display: 'none' }}
           onChange={onInputChange}
         />
