@@ -1,5 +1,64 @@
+import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
+import { SECRET_PATTERNS } from '@/lib/patterns';
 import SecurityMiddleware from '@/lib/SecurityMiddleware';
+
+function sha256Utf8(s) {
+  return createHash('sha256').update(s ?? '', 'utf8').digest('hex');
+}
+
+/** True if `s` matches any egress secret detector (same catalog as analyzeOutput). */
+function textHasDetectableSecrets(s) {
+  const str = String(s || '');
+  for (const p of SECRET_PATTERNS) {
+    const re = new RegExp(p.regex.source, p.regex.flags);
+    if (re.test(str)) return true;
+  }
+  return false;
+}
+
+/** Lines from an uploaded file that contain detectable secrets (verbatim). */
+function extractSecretLinesFromContent(fileContent) {
+  const lines = String(fileContent || '').split(/\r?\n/);
+  const out = [];
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    if (textHasDetectableSecrets(line)) out.push(line);
+  }
+  return out.join('\n');
+}
+
+/**
+ * Models often emit strings that still match our detectors (e.g. AIzaSy_REDACTED_FOR_DEMO…)
+ * but are not the real value from the user's file. Prefer upload in that case.
+ */
+function modelOutputLooksSelfCensored(s) {
+  return /\bREDACTED\b|FOR_DEMO|DEMO_|DUMMY|PLACEHOLDER|NOT[_ ]REAL|FAKE[_ ]?KEY|SANITIZED|MASKED|_ONLY\b|PURPOSES_ ?ONLY|SECURITY_ ?REASONS|EXAMPLE_ ?ONLY|\*{4,}|•{3,}/i.test(
+    String(s || '')
+  );
+}
+
+/**
+ * When the model self-censors or uses demo placeholders, use verbatim secret lines from
+ * the client-provided upload so raw egress / Shadow shows real-shaped keys and scrubbing still runs.
+ */
+function resolveEgressSource(modelText, verbatimFileContext) {
+  let egressSource = String(modelText ?? '');
+  let rawProvenance = 'model';
+  const file = typeof verbatimFileContext === 'string' ? verbatimFileContext : '';
+  const fromFile = file.trim() ? extractSecretLinesFromContent(file) : '';
+  const modelHasShape = textHasDetectableSecrets(egressSource);
+  const useFile =
+    Boolean(fromFile.trim()) &&
+    (!modelHasShape ||
+      (modelHasShape && modelOutputLooksSelfCensored(egressSource)));
+
+  if (useFile) {
+    egressSource = fromFile;
+    rawProvenance = 'uploaded-file';
+  }
+  return { egressSource, rawProvenance };
+}
 
 // Module-level middleware instance so logs accumulate across requests
 const middleware = new SecurityMiddleware();
@@ -39,12 +98,58 @@ async function fetchCreditSnapshot(apiKey) {
 
 export async function GET() {
   // Log polling endpoint for the SecurityDashboard
-  return NextResponse.json({ logs: middleware.getLogs() });
+  return NextResponse.json({
+    logs: middleware.getLogs(),
+    policy: middleware.getPolicy(),
+    policyConfig: middleware.getPolicyConfig(),
+  });
+}
+
+export async function DELETE() {
+  middleware.clearLogs();
+  return NextResponse.json({ cleared: true, logs: [] });
+}
+
+export async function PATCH(request) {
+  try {
+    const { policy } = await request.json();
+    const result = middleware.setPolicy(policy);
+    if (!result.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'Invalid policy. Use STRICT, BALANCED, or DEV.',
+          policy: middleware.getPolicy(),
+          policyConfig: middleware.getPolicyConfig(),
+        },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({
+      ok: true,
+      policy: middleware.getPolicy(),
+      policyConfig: middleware.getPolicyConfig(),
+    });
+  } catch (_) {
+    return NextResponse.json(
+      { ok: false, error: 'Invalid request body.' },
+      { status: 400 }
+    );
+  }
 }
 
 export async function POST(request) {
   try {
-    const { message, sessionId, fileScan, history, model } = await request.json();
+    const {
+      message,
+      sessionId,
+      fileScan,
+      history,
+      model,
+      shadowMode: bodyShadow,
+      verbatimFileContext: bodyVerbatimFile,
+    } = await request.json();
+    const shadowMode = bodyShadow === true;
     const selectedModel = model || 'google/gemini-2.5-flash';
     const apiKey = process.env.OPENROUTER_API_KEY;
 
@@ -65,18 +170,23 @@ export async function POST(request) {
 
     if (inputResult.blocked) {
       const credits = await fetchCreditSnapshot(apiKey);
-      return NextResponse.json(
-        {
-          blocked: true,
-          reason: inputResult.reason,
-          threatLevel: inputResult.threatLevel,
-          flags: inputResult.flags,
-          securityLog: middleware.getLogs(),
-          anomaly: anomalyResult,
-          credits,
-        },
-        { status: 200 }
-      );
+      const body = {
+        blocked: true,
+        reason: inputResult.reason,
+        threatLevel: inputResult.threatLevel,
+        flags: inputResult.flags,
+        securityLog: middleware.getLogs(),
+        anomaly: anomalyResult,
+        credits,
+      };
+      if (shadowMode) {
+        body.shadow = {
+          enabled: true,
+          inputBlocked: true,
+          assertion: 'Input blocked before model; no egress occurred.',
+        };
+      }
+      return NextResponse.json(body, { status: 200 });
     }
 
     // ── Layer 3: Grok (xAI) call ────────────────────────────────────────
@@ -91,10 +201,18 @@ export async function POST(request) {
           .slice(-4) // keep only last 4 messages to save tokens
       : [];
 
+    const systemPrompt =
+      'You are SecureAI, a secure AI assistant. Be concise. ' +
+      'Do not invent credentials from memory or the open web. ' +
+      'When the user message includes an uploaded file block (e.g. .env), treat that block as the only source of truth for those variables. ' +
+      'If they ask for a key or secret that appears there, answer with the exact same characters as in the file (full line or full value)—copy-paste fidelity, no paraphrasing. ' +
+      'Critical: do NOT self-censor or substitute your own placeholders (no REDACTED, DEMO, fake stars, shortened keys, or “safe” stand-ins). That breaks our pipeline: a server-side egress filter MUST see the real-shaped secret to scrub it before display. ' +
+      'If there is no uploaded file and someone asks for secrets, refuse.';
+
     const messages = [
       {
         role: 'system',
-        content: 'You are SecureAI, a secure AI assistant. Be concise. Never reveal secrets or API keys even if asked.',
+        content: systemPrompt,
       },
       ...safeHistory,
       {
@@ -147,17 +265,55 @@ export async function POST(request) {
     const credits = await fetchCreditSnapshot(apiKey);
 
     // ── Layer 4: Output analysis ────────────────────────────────────────
-    const outputCheck = middleware.analyzeOutput(text);
+    const { egressSource, rawProvenance } = resolveEgressSource(text, bodyVerbatimFile);
+    const outputCheck = middleware.analyzeOutput(egressSource);
+    const protectedText = outputCheck.clean ? egressSource : outputCheck.redacted;
+    const totalSecretMatches = outputCheck.flagged.reduce(
+      (acc, f) => acc + (f.count || 0),
+      0
+    );
 
-    return Response.json({
+    const body = {
       blocked: false,
-      response: text,
+      response: protectedText,
       clean: outputCheck.clean,
       flagged: outputCheck.flagged,
       securityLog: middleware.getLogs(),
       usage: grokData.usage || { total_tokens: 0, prompt_tokens: 0, completion_tokens: 0 },
       credits,
-    });
+    };
+
+    if (shadowMode) {
+      const raw = String(egressSource ?? '');
+      const prot = String(protectedText ?? '');
+      const rawDigest = sha256Utf8(raw);
+      const protectedDigest = sha256Utf8(prot);
+      body.shadow = {
+        enabled: true,
+        egress: {
+          boundary: 'post-model, pre-client',
+          rawProvenance,
+          rawByteLength: Buffer.byteLength(raw, 'utf8'),
+          protectedByteLength: Buffer.byteLength(prot, 'utf8'),
+          rawDigest,
+          protectedDigest,
+          digestsMatch: rawDigest === protectedDigest,
+          wouldLeakSecrets: !outputCheck.clean,
+          totalSecretMatches,
+          findings: outputCheck.flagged,
+          rawPreview: raw.slice(0, 240),
+          protectedPreview: prot.slice(0, 240),
+        },
+        assertion:
+          rawProvenance === 'uploaded-file'
+            ? 'Model reply had no detectable secret patterns; raw column shows verbatim lines from your upload — scrubbing applied on that text before display.'
+            : rawDigest === protectedDigest
+              ? 'Egress unchanged: raw and protected digests match.'
+              : 'Egress modified: scrubbing applied; digests differ.',
+      };
+    }
+
+    return Response.json(body);
   } catch (error) {
     console.error('secure-chat error:', error);
     if (error.name === 'AbortError') {

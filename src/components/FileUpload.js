@@ -12,6 +12,24 @@ const PATTERNS = SECRET_PATTERNS.map((p) => ({
   replacement: p.redaction,
 }));
 const PATTERN_COUNT = PATTERNS.length;
+const BROAD_PATTERN_IDS = new Set([
+  'api_key_generic',
+  'password_literal',
+  'internal_ip',
+]);
+
+function confidenceForFinding({ severity, id, count }) {
+  const base = severity === 'CRITICAL' ? 95 : severity === 'HIGH' ? 86 : 74;
+  const volumeBoost = Math.min(8, Math.round(Math.log2((count || 1) + 1) * 2));
+  const broadPenalty = BROAD_PATTERN_IDS.has(id) ? 10 : 0;
+  return Math.max(55, Math.min(99, base + volumeBoost - broadPenalty));
+}
+
+function evidenceFromMatch(match) {
+  const raw = String(match || '');
+  const trimmed = raw.length > 36 ? `${raw.slice(0, 18)}...${raw.slice(-10)}` : raw;
+  return trimmed.replace(/[A-Za-z0-9]/g, '•');
+}
 
 /* ─────────────────────────────────────── scan a single file ── */
 function scanContent(raw) {
@@ -22,7 +40,15 @@ function scanContent(raw) {
     const r = new RegExp(regex.source, regex.flags);
     const matches = raw.match(r);
     if (matches && matches.length > 0) {
-      flagged.push({ id, name, severity, count: matches.length });
+      const count = matches.length;
+      flagged.push({
+        id,
+        name,
+        severity,
+        count,
+        confidence: confidenceForFinding({ severity, id, count }),
+        evidence: evidenceFromMatch(matches[0]),
+      });
       redacted = redacted.replace(new RegExp(regex.source, regex.flags), replacement);
     }
   });
@@ -304,7 +330,15 @@ export default function FileUpload({ onScanComplete }) {
           const criticalCount = result.flagged
             .filter((fl) => fl.severity === 'CRITICAL')
             .reduce((s, fl) => s + fl.count, 0);
-          if (onScanComplete) onScanComplete({ fileName: f.name, secretCount, criticalCount, redactedText: result.redacted });
+          if (onScanComplete) {
+            onScanComplete({
+              fileName: f.name,
+              secretCount,
+              criticalCount,
+              redactedText: result.redacted,
+              rawText: raw,
+            });
+          }
           fetch('/api/secure-chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -475,7 +509,7 @@ export default function FileUpload({ onScanComplete }) {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
                     {file.scanResult.flagged.map((fl, fi) => (
                       <span key={fi} style={S.badge}>
-                        🚨 {fl.name} ×{fl.count}
+                        🚨 {fl.name} ×{fl.count} · {fl.severity} · {fl.confidence ?? 80}% · {fl.evidence ?? '•••'}
                       </span>
                     ))}
                   </div>

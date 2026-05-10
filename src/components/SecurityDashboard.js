@@ -75,8 +75,10 @@ export default function SecurityDashboard() {
   const [stats,     setStats]     = useState({ blocked: 0, redacted: 0, anomalies: 0, score: 100 });
   const [isLive,    setIsLive]    = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [selectedLogIndex, setSelectedLogIndex] = useState(0);
   const tableRef    = useRef(null);
   const intervalRef = useRef(null);
+  const streamRef   = useRef(null);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -97,18 +99,89 @@ export default function SecurityDashboard() {
     } catch (_) {}
   }, []);
 
+  const clearLogs = async () => {
+    try {
+      await fetch('/api/secure-chat', { method: 'DELETE' });
+      await fetchLogs();
+    } catch (_) {
+      setLogs([]);
+      setStats({ blocked: 0, redacted: 0, anomalies: 0, score: 100 });
+    }
+  };
+
   useEffect(() => { fetchLogs(); }, []);
+  useEffect(() => {
+    setSelectedLogIndex(0);
+  }, [logs.length]);
 
   useEffect(() => {
-    if (isLive) {
-      intervalRef.current = setInterval(fetchLogs, 3000);
-    } else {
-      clearInterval(intervalRef.current);
+    const stopFallback = () => clearInterval(intervalRef.current);
+    const stopStream = () => {
+      if (streamRef.current) {
+        streamRef.current.close();
+        streamRef.current = null;
+      }
+    };
+
+    if (!isLive) {
+      stopStream();
+      stopFallback();
+      return () => {
+        stopStream();
+        stopFallback();
+      };
     }
-    return () => clearInterval(intervalRef.current);
+
+    try {
+      const es = new EventSource('/api/secure-chat/stream');
+      streamRef.current = es;
+
+      es.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (Array.isArray(data.logs)) setLogs(data.logs);
+          if (data.stats) setStats(data.stats);
+        } catch (_) {}
+      };
+
+      // Fallback to polling if SSE fails.
+      es.onerror = () => {
+        stopStream();
+        if (!intervalRef.current) {
+          fetchLogs();
+          intervalRef.current = setInterval(fetchLogs, 3000);
+        }
+      };
+    } catch (_) {
+      fetchLogs();
+      intervalRef.current = setInterval(fetchLogs, 3000);
+    }
+
+    return () => {
+      stopStream();
+      stopFallback();
+    };
   }, [isLive, fetchLogs]);
 
   const scoreColor = stats.score >= 90 ? '#00e676' : stats.score >= 70 ? '#ffd600' : '#ff5252';
+  const selectedLog = logs[selectedLogIndex] || null;
+
+  const remediation = (log) => {
+    if (!log) return 'Select an event to inspect its security context.';
+    if (log.layer === 'INPUT_ANALYSIS' || log.status === 'BLOCKED') {
+      return 'Reject the request, keep the original system prompt intact, and ask the user to rephrase with benign intent.';
+    }
+    if (log.layer === 'OUTPUT_ANALYSIS' || log.status === 'REDACTED') {
+      return 'Serve only the redacted output, never raw secrets. Rotate any exposed credentials in upstream systems.';
+    }
+    if (log.layer === 'ANOMALY_DETECTION' || log.status === 'ANOMALY') {
+      return 'Throttle this session, add cooldown, and require human verification for repeated abuse patterns.';
+    }
+    if (log.layer === 'FILE_SCANNER') {
+      return 'Use redacted file contents only. Store sanitized copies and notify owner to clean source files.';
+    }
+    return 'No immediate action needed. Keep monitoring for repeated patterns.';
+  };
 
   const STAT_CARDS = [
     { label: 'Security Score',   value: `${stats.score}%`, color: scoreColor,  icon: '🛡' },
@@ -147,7 +220,7 @@ export default function SecurityDashboard() {
         <div style={{ display: 'flex', gap: '6px' }}>
           {/* Clear logs */}
           <button
-            onClick={() => setLogs([])}
+            onClick={clearLogs}
             style={{
               background: 'rgba(255,82,82,0.08)',
               border: '1px solid rgba(255,82,82,0.25)',
@@ -219,17 +292,20 @@ export default function SecurityDashboard() {
           logs.map((log, i) => {
             const s = STATUS_STYLES[log.status] || STATUS_STYLES.PASSED;
             return (
-              <div key={i} style={{
+              <button key={i} onClick={() => setSelectedLogIndex(i)} style={{
                 display: 'grid', gridTemplateColumns: '70px 1fr',
                 gap: '8px', padding: '8px 10px',
                 marginBottom: '4px', borderRadius: '6px',
                 background: s.bg,
-                border: `1px solid ${s.border}`,
+                border: `1px solid ${selectedLogIndex === i ? '#00e5ff66' : s.border}`,
                 /* left-side glow stripe */
                 borderLeft: `3px solid ${s.leftGlow}`,
                 boxShadow: `inset 3px 0 10px ${s.leftGlow}18`,
                 fontSize: '11px',
                 animation: i === 0 ? 'sdFadeIn 0.4s ease' : undefined,
+                width: '100%',
+                textAlign: 'left',
+                cursor: 'pointer',
               }}>
                 {/* Status + time */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
@@ -269,9 +345,37 @@ export default function SecurityDashboard() {
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
             );
           })
+        )}
+      </div>
+
+      {/* ── Explainability panel ── */}
+      <div style={{
+        borderTop: '1px solid #0d1826',
+        background: '#070e18',
+        padding: '10px 12px 12px',
+      }}>
+        <div style={{ color: '#00e5ff', fontSize: '10px', letterSpacing: '1.5px', marginBottom: '6px' }}>
+          EXPLAINABILITY PANEL
+        </div>
+        {!selectedLog ? (
+          <div style={{ color: '#2e4a62', fontSize: '11px' }}>
+            No event selected yet.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '6px' }}>
+            <div style={{ color: '#6b8aa3', fontSize: '11px' }}>
+              <span style={{ color: '#9cc2dd' }}>Trigger:</span> {selectedLog.layer} / {selectedLog.status}
+            </div>
+            <div style={{ color: '#6b8aa3', fontSize: '11px' }}>
+              <span style={{ color: '#9cc2dd' }}>Why:</span> {selectedLog.reason}
+            </div>
+            <div style={{ color: '#6b8aa3', fontSize: '11px' }}>
+              <span style={{ color: '#9cc2dd' }}>Remediation:</span> {remediation(selectedLog)}
+            </div>
+          </div>
         )}
       </div>
 

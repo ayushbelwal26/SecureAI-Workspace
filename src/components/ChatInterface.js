@@ -29,7 +29,12 @@ const THREAT_BG = {
   CRITICAL: 'rgba(213,0,0,0.08)',
 };
 
-export default function ChatInterface({ fileContext = '', onClearContext }) {
+export default function ChatInterface({
+  fileContext = '',
+  fileContextRaw = '',
+  onClearContext,
+  attackReplayRequest = null,
+}) {
   const [messages, setMessages] = useState([
     {
       id: 'init',
@@ -48,13 +53,30 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [creditStats, setCreditStats] = useState(null);
   const [sessionTokens, setSessionTokens] = useState(0);
+  const [securityPolicy, setSecurityPolicy] = useState('BALANCED');
+  const [shadowMode, setShadowMode] = useState(false);
+  const [lastShadow, setLastShadow] = useState(null);
   const bottomRef = useRef(null);
   const dropdownRef = useRef(null);
+  const lastReplayIdRef = useRef('');
 
   useEffect(() => {
     setIsMounted(true);
     setSessionId('sess-' + Math.random().toString(36).slice(2, 9));
   }, []);
+
+  useEffect(() => {
+    fetch('/api/secure-chat')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.policy) setSecurityPolicy(data.policy);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!shadowMode) setLastShadow(null);
+  }, [shadowMode]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -71,9 +93,12 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = async () => {
-    const trimmed = input.trim();
+  const sendMessage = async (overrideMessage) => {
+    const text = typeof overrideMessage === 'string' ? overrideMessage : input;
+    const trimmed = String(text ?? '').trim();
     if (!trimmed || loading) return;
+
+    const usedOverride = typeof overrideMessage === 'string';
 
     const userMsg = {
       id: Date.now() + '-user',
@@ -84,13 +109,26 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
       threatLevel: 'SAFE',
     };
     setMessages((prev) => [...prev, userMsg]);
-    setInput('');
+    if (!usedOverride) {
+      setInput('');
+    }
     setLoading(true);
+    if (shadowMode) setLastShadow(null);
 
-    const truncatedContext = fileContext ? fileContext.slice(0, 1500) : '';
+    const maxCtx = 1500;
+    const rawSlice = fileContextRaw ? fileContextRaw.slice(0, maxCtx) : '';
+    const redactedSlice = fileContext ? fileContext.slice(0, maxCtx) : '';
+    const useRawForModel = Boolean(rawSlice);
+    const modelFileSlice = useRawForModel ? rawSlice : redactedSlice;
 
-    const fullMessage = truncatedContext
-      ? `I have uploaded a file. Here is its content (secrets already redacted):\n\n${truncatedContext}\n\nMy question: ${trimmed}`
+    const egressHint =
+      '\n\n[SecureAI — required for this request: Values you output for anything present in the file above must match the file exactly. ' +
+      'Do not replace secrets with labels like REDACTED_FOR_DEMO or shortened keys. Server egress redaction runs after your reply.]';
+
+    const fullMessage = modelFileSlice
+      ? useRawForModel && fileContextRaw !== fileContext
+        ? `I have uploaded a file. Here is its exact content:\n\n${modelFileSlice}\n\nMy question: ${trimmed}${egressHint}`
+        : `I have uploaded a file. Here is its content (secrets already redacted):\n\n${modelFileSlice}\n\nMy question: ${trimmed}`
       : trimmed;
 
     // Build conversation history for memory
@@ -102,10 +140,22 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
       const res = await fetch('/api/secure-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: fullMessage, sessionId, history, model: selectedModel }),
+        body: JSON.stringify({
+          message: fullMessage,
+          sessionId,
+          history,
+          model: selectedModel,
+          shadowMode,
+          verbatimFileContext:
+            fileContextRaw && fileContextRaw !== fileContext
+              ? fileContextRaw.slice(0, 1500)
+              : undefined,
+        }),
       });
       const data = await res.json();
       console.log('API Response:', data);
+
+      if (data.shadow) setLastShadow(data.shadow);
 
       let errorMessage = null;
 
@@ -176,10 +226,46 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
     }
   };
 
+  useEffect(() => {
+    if (!attackReplayRequest?.id || loading) return;
+    if (lastReplayIdRef.current === attackReplayRequest.id) return;
+    lastReplayIdRef.current = attackReplayRequest.id;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `${Date.now()}-replay`,
+        role: 'system',
+        content: `Attack replay launched: ${attackReplayRequest.label}`,
+        timestamp: new Date().toISOString(),
+        status: 'SYSTEM',
+        threatLevel: 'SAFE',
+      },
+    ]);
+    sendMessage(attackReplayRequest.prompt);
+  }, [attackReplayRequest, loading]);
+
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    }
+  };
+
+  const updatePolicy = async (nextPolicy) => {
+    setSecurityPolicy(nextPolicy);
+    try {
+      const res = await fetch('/api/secure-chat', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ policy: nextPolicy }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setSecurityPolicy(data?.policy || 'BALANCED');
+      }
+    } catch (_) {
+      setSecurityPolicy('BALANCED');
     }
   };
 
@@ -191,7 +277,7 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
         borderRadius: '12px',
         display: 'flex',
         flexDirection: 'column',
-        height: '520px',
+        height: shadowMode && lastShadow ? '580px' : '520px',
         overflow: 'hidden',
         fontFamily: "'JetBrains Mono', monospace",
       }}
@@ -252,6 +338,49 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '10px' }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#00e676', boxShadow: '0 0 6px #00e676', animation: 'pulse 2s infinite' }} />
           <span style={{ color: '#4a6880', fontSize: '10px' }}>SESSION: {sessionId ? sessionId.slice(0, 12) : '...'}</span>
+        </div>
+
+        <div style={{ marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            onClick={() => setShadowMode((v) => !v)}
+            title="Show verifiable egress proof (SHA-256 digests of raw vs protected output)"
+            style={{
+              background: shadowMode ? 'rgba(167,139,250,0.15)' : 'rgba(167,139,250,0.06)',
+              border: `1px solid ${shadowMode ? 'rgba(167,139,250,0.45)' : 'rgba(167,139,250,0.2)'}`,
+              borderRadius: '6px',
+              color: shadowMode ? '#c4b5fd' : '#6b5b95',
+              fontSize: '10px',
+              fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.5px',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              fontWeight: 700,
+            }}
+          >
+            Shadow {shadowMode ? 'ON' : 'OFF'}
+          </button>
+          <select
+            value={securityPolicy}
+            onChange={(e) => updatePolicy(e.target.value)}
+            style={{
+              background: 'rgba(255,170,0,0.08)',
+              border: '1px solid rgba(255,170,0,0.28)',
+              borderRadius: '6px',
+              color: '#ffaa00',
+              fontSize: '10px',
+              fontFamily: "'JetBrains Mono', monospace",
+              letterSpacing: '0.5px',
+              padding: '4px 8px',
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+            title="Security policy profile"
+          >
+            <option value="STRICT">STRICT</option>
+            <option value="BALANCED">BALANCED</option>
+            <option value="DEV">DEV</option>
+          </select>
         </div>
 
         {/* Compact Credit Counter */}
@@ -383,7 +512,7 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
                         color: '#ff5252',
                       }}
                     >
-                      {f.type}
+                      {f.type || f.name || 'FLAG'}{f.severity ? ` · ${f.severity}` : ''}{f.confidence ? ` · ${f.confidence}%` : ''}
                     </span>
                   ))}
                 </div>
@@ -415,8 +544,12 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
         <div ref={bottomRef} />
       </div>
 
+      {shadowMode && lastShadow && (
+        <EgressProofPanel shadow={lastShadow} />
+      )}
+
       {/* File context banner */}
-      {fileContext && (
+      {(fileContext || fileContextRaw) && (
         <div style={{
           padding: '7px 18px',
           borderBottom: '1px solid rgba(0,229,255,0.15)',
@@ -491,7 +624,8 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
             <button
-              onClick={sendMessage}
+              type="button"
+              onClick={() => sendMessage()}
               disabled={loading || !input.trim()}
               style={{
                 background: loading || !input.trim() ? '#0d1826' : 'rgba(0,229,255,0.12)',
@@ -536,6 +670,120 @@ export default function ChatInterface({ fileContext = '', onClearContext }) {
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes blink { 0%,100%{opacity:0.2} 50%{opacity:1} }
       `}</style>
+    </div>
+  );
+}
+
+function EgressProofPanel({ shadow }) {
+  const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', wordBreak: 'break-all' };
+  return (
+    <div
+      style={{
+        flexShrink: 0,
+        maxHeight: '200px',
+        overflowY: 'auto',
+        padding: '10px 18px',
+        borderTop: '1px solid rgba(167,139,250,0.25)',
+        borderBottom: '1px solid rgba(167,139,250,0.12)',
+        background: 'linear-gradient(180deg, rgba(167,139,250,0.08) 0%, rgba(8,12,18,0.95) 100%)',
+      }}
+    >
+      <div style={{ color: '#c4b5fd', fontSize: '10px', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '8px' }}>
+        EGRESS PROOF
+      </div>
+      {shadow.inputBlocked ? (
+        <p style={{ ...mono, color: '#a5b4fc', margin: 0, lineHeight: 1.5 }}>{shadow.assertion}</p>
+      ) : shadow.egress ? (
+        <>
+          <p style={{ ...mono, color: '#e9d5ff', margin: '0 0 8px', lineHeight: 1.5 }}>{shadow.assertion}</p>
+          {shadow.egress.rawProvenance === 'uploaded-file' && (
+            <div style={{ ...mono, color: '#a78bfa', marginBottom: '6px', fontStyle: 'italic' }}>
+              Raw column: verbatim secret lines from your upload (model text had no matching secret patterns).
+            </div>
+          )}
+          <div style={{ ...mono, color: '#94a3b8', marginBottom: '6px' }}>
+            {shadow.egress.boundary} · raw {shadow.egress.rawByteLength} B → protected {shadow.egress.protectedByteLength} B
+            {shadow.egress.wouldLeakSecrets ? (
+              <span style={{ color: '#fbbf24', marginLeft: '8px' }}>
+                · {shadow.egress.totalSecretMatches} secret match(es)
+              </span>
+            ) : null}
+          </div>
+          <div style={{ display: 'grid', gap: '6px', marginBottom: '8px' }}>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '9px', letterSpacing: '0.5px' }}>RAW SHA-256</span>
+              <div style={{ ...mono, color: '#f472b6' }}>{shadow.egress.rawDigest}</div>
+            </div>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '9px', letterSpacing: '0.5px' }}>PROTECTED SHA-256</span>
+              <div style={{ ...mono, color: '#34d399' }}>{shadow.egress.protectedDigest}</div>
+            </div>
+          </div>
+          <div style={{ ...mono, color: shadow.egress.digestsMatch ? '#34d399' : '#fbbf24', marginBottom: '8px' }}>
+            {shadow.egress.digestsMatch ? 'Digests match — no scrubbing.' : 'Digests differ — scrubbing verified.'}
+          </div>
+          {shadow.egress.findings?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+              {shadow.egress.findings.map((f, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: '9px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: 'rgba(251,191,36,0.12)',
+                    border: '1px solid rgba(251,191,36,0.35)',
+                    color: '#fcd34d',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}
+                >
+                  {f.type} ×{f.count}
+                </span>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: '1fr 1fr' }}>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '9px' }}>Raw preview</span>
+              <pre
+                style={{
+                  ...mono,
+                  color: '#cbd5e1',
+                  margin: '4px 0 0',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '72px',
+                  overflow: 'hidden',
+                  background: 'rgba(0,0,0,0.25)',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                }}
+              >
+                {shadow.egress.rawPreview || '—'}
+              </pre>
+            </div>
+            <div>
+              <span style={{ color: '#64748b', fontSize: '9px' }}>Protected preview</span>
+              <pre
+                style={{
+                  ...mono,
+                  color: '#a7f3d0',
+                  margin: '4px 0 0',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: '72px',
+                  overflow: 'hidden',
+                  background: 'rgba(0,0,0,0.25)',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(52,211,153,0.15)',
+                }}
+              >
+                {shadow.egress.protectedPreview || '—'}
+              </pre>
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 }

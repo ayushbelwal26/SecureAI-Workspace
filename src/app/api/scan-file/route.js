@@ -9,6 +9,24 @@ const middleware =
 
 /* ── Max content size: 500 KB ── */
 const MAX_BYTES = 500 * 1024;
+const BROAD_PATTERN_IDS = new Set([
+  'api_key_generic',
+  'password_literal',
+  'internal_ip',
+]);
+
+function confidenceForFinding({ severity, id, count }) {
+  const base = severity === 'CRITICAL' ? 95 : severity === 'HIGH' ? 86 : 74;
+  const volumeBoost = Math.min(8, Math.round(Math.log2((count || 1) + 1) * 2));
+  const broadPenalty = BROAD_PATTERN_IDS.has(id) ? 10 : 0;
+  return Math.max(55, Math.min(99, base + volumeBoost - broadPenalty));
+}
+
+function evidenceFromMatch(match) {
+  const raw = String(match || '');
+  const trimmed = raw.length > 36 ? `${raw.slice(0, 18)}...${raw.slice(-10)}` : raw;
+  return trimmed.replace(/[A-Za-z0-9]/g, '•');
+}
 
 /* ─────────────────────────────────────────────────────────────
    POST /api/scan-file
@@ -68,6 +86,8 @@ export async function POST(request) {
           name:      pattern.name,
           severity:  pattern.severity,
           count,
+          confidence: confidenceForFinding({ severity: pattern.severity, id: pattern.id, count }),
+          evidence: evidenceFromMatch(matches[0]),
           redaction: pattern.redaction,
         });
 

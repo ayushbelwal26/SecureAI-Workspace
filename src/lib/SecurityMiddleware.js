@@ -1,5 +1,32 @@
+import { SECRET_PATTERNS } from '@/lib/patterns';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import path from 'path';
+
 // Module-level log accumulator — persists across requests in the same server process
-const globalLogs = [];
+const LOG_DIR = path.join(process.cwd(), '.data');
+const LOG_FILE = path.join(LOG_DIR, 'security-logs.json');
+
+function loadPersistedLogs() {
+  try {
+    if (!existsSync(LOG_FILE)) return [];
+    const raw = readFileSync(LOG_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function persistLogs(logs) {
+  try {
+    if (!existsSync(LOG_DIR)) {
+      mkdirSync(LOG_DIR, { recursive: true });
+    }
+    writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2), 'utf8');
+  } catch (_) {}
+}
+
+const globalLogs = loadPersistedLogs();
 
 const AGENT_PROFILES = {
   emailAgent: {
@@ -21,6 +48,30 @@ const AGENT_PROFILES = {
 
 // Session store for rate limiting
 const sessionStore = new Map();
+const BROAD_PATTERN_IDS = new Set([
+  'api_key_generic',
+  'password_literal',
+  'internal_ip',
+]);
+const POLICY_CONFIG = {
+  STRICT:   { minBlockLevel: 'MEDIUM', anomalyThreshold: 12 },
+  BALANCED: { minBlockLevel: 'HIGH',   anomalyThreshold: 20 },
+  DEV:      { minBlockLevel: 'CRITICAL', anomalyThreshold: 35 },
+};
+let currentPolicy = 'BALANCED';
+
+function confidenceForFinding({ severity, id, count }) {
+  const base = severity === 'CRITICAL' ? 95 : severity === 'HIGH' ? 86 : 74;
+  const volumeBoost = Math.min(8, Math.round(Math.log2((count || 1) + 1) * 2));
+  const broadPenalty = BROAD_PATTERN_IDS.has(id) ? 10 : 0;
+  return Math.max(55, Math.min(99, base + volumeBoost - broadPenalty));
+}
+
+function evidenceFromMatch(match) {
+  const raw = String(match || '');
+  const trimmed = raw.length > 36 ? `${raw.slice(0, 18)}...${raw.slice(-10)}` : raw;
+  return trimmed.replace(/[A-Za-z0-9]/g, '•');
+}
 
 class SecurityMiddleware {
   constructor() {
@@ -106,7 +157,9 @@ class SecurityMiddleware {
       }
     }
 
-    const blocked = threatLevel === 'HIGH' || threatLevel === 'CRITICAL';
+    const policy = this.getPolicy();
+    const minBlockLevel = POLICY_CONFIG[policy]?.minBlockLevel || 'HIGH';
+    const blocked = levelOrder.indexOf(threatLevel) >= levelOrder.indexOf(minBlockLevel);
     const reason =
       flags.length > 0
         ? `Detected: ${flags.map((f) => f.type).join(', ')}`
@@ -115,7 +168,7 @@ class SecurityMiddleware {
     this.log(
       'INPUT_ANALYSIS',
       blocked ? 'BLOCKED' : threatLevel === 'MEDIUM' ? 'WARNING' : 'PASSED',
-      reason,
+      `${reason} (policy: ${policy})`,
       msg
     );
 
@@ -126,31 +179,30 @@ class SecurityMiddleware {
     let redacted = aiResponse || '';
     const flagged = [];
 
-    const sensitivePatterns = [
-      { label: '[REDACTED-GOOGLE-API-KEY]', regex: /AIza[0-9A-Za-z\-_]{35}/g },
-      { label: '[REDACTED-OPENAI-KEY]', regex: /sk-[A-Za-z0-9]{20,}/g },
-      { label: '[REDACTED-BEARER-TOKEN]', regex: /Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi },
-      { label: '[REDACTED-PASSWORD]', regex: /password[=:]\s*["']?[^\s"'<>{}\[\]]{4,}["']?/gi },
-      { label: '[REDACTED-CREDIT-CARD]', regex: /\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12})\b/g },
-      { label: '[REDACTED-SSN]', regex: /\b\d{3}-\d{2}-\d{4}\b/g },
-      { label: '[REDACTED-PRIVATE-KEY]', regex: /-----BEGIN (RSA |EC |DSA )?PRIVATE KEY-----[\s\S]*?-----END (RSA |EC |DSA )?PRIVATE KEY-----/gi },
-      { label: '[REDACTED-AWS-KEY]', regex: /AKIA[0-9A-Z]{16}/g },
-      { label: '[REDACTED-SECRET]', regex: /(?:secret|api_secret|client_secret)[=:]\s*["']?[A-Za-z0-9\-_]{8,}["']?/gi },
-    ];
+    for (const pattern of SECRET_PATTERNS) {
+      const re = new RegExp(pattern.regex.source, pattern.regex.flags);
+      const matches = redacted.match(re);
+      if (!matches || matches.length === 0) continue;
 
-    for (const { label, regex } of sensitivePatterns) {
-      const before = redacted;
-      redacted = redacted.replace(regex, label);
-      if (redacted !== before) {
-        flagged.push(label);
-      }
+      redacted = redacted.replace(new RegExp(pattern.regex.source, pattern.regex.flags), pattern.redaction);
+      const count = matches.length;
+      flagged.push({
+        type: pattern.name,
+        id: pattern.id,
+        severity: pattern.severity,
+        count,
+        confidence: confidenceForFinding({ severity: pattern.severity, id: pattern.id, count }),
+        evidence: evidenceFromMatch(matches[0]),
+      });
     }
 
     const clean = flagged.length === 0;
     this.log(
       'OUTPUT_ANALYSIS',
       clean ? 'PASSED' : 'REDACTED',
-      clean ? 'No sensitive data detected' : `Redacted: ${flagged.join(', ')}`,
+      clean
+        ? 'No sensitive data detected'
+        : `Redacted: ${flagged.slice(0, 4).map((f) => `${f.type} x${f.count}`).join(', ')}${flagged.length > 4 ? ' ...' : ''}`,
       redacted
     );
 
@@ -182,7 +234,8 @@ class SecurityMiddleware {
   detectAnomaly(sessionId, action) {
     const now = Date.now();
     const WINDOW_MS = 60 * 1000;
-    const THRESHOLD = 20;
+    const policy = this.getPolicy();
+    const THRESHOLD = POLICY_CONFIG[policy]?.anomalyThreshold || 20;
 
     if (!sessionStore.has(sessionId)) {
       sessionStore.set(sessionId, { actions: [], windowStart: now });
@@ -220,6 +273,7 @@ class SecurityMiddleware {
     if (this.logs.length > 500) {
       this.logs.splice(0, this.logs.length - 500);
     }
+    persistLogs(this.logs);
   }
 
   /**
@@ -239,6 +293,29 @@ class SecurityMiddleware {
 
   getLogs() {
     return [...this.logs];
+  }
+
+  getPolicy() {
+    return currentPolicy;
+  }
+
+  getPolicyConfig() {
+    return POLICY_CONFIG;
+  }
+
+  setPolicy(policyName) {
+    if (!policyName || !POLICY_CONFIG[policyName]) {
+      return { ok: false, policy: currentPolicy };
+    }
+    currentPolicy = policyName;
+    this.log('SYSTEM', 'SYSTEM', `Policy changed to ${policyName}`, policyName);
+    return { ok: true, policy: currentPolicy };
+  }
+
+  clearLogs() {
+    this.logs.splice(0, this.logs.length);
+    persistLogs(this.logs);
+    return [];
   }
 
   getSecurityScore() {
