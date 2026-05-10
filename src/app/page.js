@@ -120,35 +120,39 @@ export default function HomePage() {
 
           {/* Scene 1: Hero — Shield assembles */}
           <div className="scene-panel" style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', textAlign:'center', padding:'0 32px', pointerEvents:'none' }}>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'5px 14px', borderRadius:20, border:'1px solid rgba(56,189,248,.25)', background:'rgba(56,189,248,.06)', marginBottom:32, fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:2.5, color:'#38bdf8', fontWeight:700 }}>
-              <div style={{ width:6, height:6, borderRadius:'50%', background:'#38bdf8', animation:'tealPulse 2s ease-in-out infinite' }} />
-              ACTIVE SECURITY FRAMEWORK
+            {/* Dark scrim behind text so particles don't bleed through */}
+            <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(6,10,20,0.72) 0%, rgba(6,10,20,0.18) 70%, transparent 100%)', pointerEvents:'none' }} />
+            <div style={{ position:'relative', display:'flex', flexDirection:'column', alignItems:'center' }}>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 16px', borderRadius:20, border:'1px solid rgba(56,189,248,.45)', background:'rgba(4,20,40,0.75)', backdropFilter:'blur(8px)', marginBottom:32, fontFamily:"'JetBrains Mono',monospace", fontSize:10, letterSpacing:2.5, color:'#38bdf8', fontWeight:700 }}>
+                <div style={{ width:6, height:6, borderRadius:'50%', background:'#38bdf8', animation:'tealPulse 2s ease-in-out infinite' }} />
+                ACTIVE SECURITY FRAMEWORK
+              </div>
+              <h1 className="hero-headline" style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(36px,6vw,68px)', fontWeight:800, lineHeight:1.1, letterSpacing:'-1.5px', marginBottom:24, maxWidth:760, textShadow:'0 2px 40px rgba(0,0,0,0.9), 0 0 80px rgba(6,10,20,0.8)' }}>
+                The Invisible Security Layer<br />
+                <span style={{ background:'linear-gradient(100deg, #38bdf8 0%, #818cf8 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', filter:'drop-shadow(0 0 16px rgba(56,189,248,0.6))' }}>for AI Development</span>
+              </h1>
+              <p className="hero-sub" style={{ fontSize:'clamp(14px,1.8vw,17px)', color:'#c8dfe8', lineHeight:1.8, maxWidth:520, marginBottom:44, pointerEvents:'auto', textShadow:'0 1px 20px rgba(0,0,0,0.95)', background:'rgba(6,10,20,0.45)', backdropFilter:'blur(4px)', borderRadius:12, padding:'12px 20px' }}>
+                Real-time prompt injection prevention, PII scrubbing, and adversarial defense — built directly into your LLM pipeline.
+              </p>
+              <div className="hero-btns hero-buttons" style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap', pointerEvents:'auto' }}>
+                <Link href="/workspace" className="hero-btn-primary">Deploy Agent →</Link>
+                <Link href="/threats" className="hero-btn-outline">View Documentation</Link>
+              </div>
             </div>
-            <h1 className="hero-headline" style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(36px,6vw,68px)', fontWeight:800, lineHeight:1.1, letterSpacing:'-1.5px', marginBottom:24, maxWidth:760 }}>
-              The Invisible Security Layer<br />
-              <span style={{ background:'linear-gradient(100deg, #38bdf8 0%, #818cf8 100%)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>for AI Development</span>
-            </h1>
-            <p className="hero-sub" style={{ fontSize:'clamp(14px,1.8vw,17px)', color:'#6b9aaa', lineHeight:1.8, maxWidth:520, marginBottom:44, pointerEvents:'auto' }}>
-              Real-time prompt injection prevention, PII scrubbing, and adversarial defense — built directly into your LLM pipeline.
-            </p>
-            <div className="hero-btns hero-buttons" style={{ display:'flex', gap:14, justifyContent:'center', flexWrap:'wrap', pointerEvents:'auto' }}>
-              <Link href="/workspace" className="hero-btn-primary">Deploy Agent →</Link>
-              <Link href="/threats" className="hero-btn-outline">View Documentation</Link>
-            </div>
-            <div style={{ position:'absolute', bottom:40, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:6, opacity:0.4 }}>
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:2, color:'#38bdf8' }}>SCROLL TO EXPLORE</span>
+            <div style={{ position:'absolute', bottom:40, left:'50%', transform:'translateX(-50%)', display:'flex', flexDirection:'column', alignItems:'center', gap:6, opacity:0.7 }}>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:2, color:'#38bdf8', textShadow:'0 0 10px rgba(56,189,248,0.8)' }}>SCROLL TO EXPLORE</span>
               <div style={{ width:1, height:40, background:'linear-gradient(to bottom, #38bdf8, transparent)' }} />
             </div>
           </div>
 
           {/* Scene 2: Threat Detection */}
-          <div style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'flex-start', padding:'0 8vw', opacity:0, animation:'none' }} className="scene-2">
-            <div style={{ maxWidth:440, background:'rgba(8,12,18,0.75)', backdropFilter:'blur(20px)', border:'1px solid rgba(255,45,85,0.2)', borderRadius:20, padding:'40px 36px' }}>
+          <div style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'flex-start', padding:'0 8vw' }} className="scene-2">
+            <div style={{ maxWidth:440, background:'rgba(6,10,18,0.88)', backdropFilter:'blur(24px)', border:'1px solid rgba(255,45,85,0.35)', borderRadius:20, padding:'40px 36px', boxShadow:'0 8px 60px rgba(0,0,0,0.6)' }}>
               <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:3, color:'#ff2d55', marginBottom:16 }}>ACTIVE DEFENSE · SCENE 02</div>
-              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px' }}>
+              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px', textShadow:'0 2px 20px rgba(0,0,0,0.8)' }}>
                 Prompt Injection<br /><span style={{ color:'#ff2d55' }}>Firewall</span>
               </h2>
-              <p style={{ color:'#6b9aaa', fontSize:14, lineHeight:1.8 }}>Adversarial prompts hit the shield and are deflected before they ever reach your model. Zero false negatives on known attack vectors.</p>
+              <p style={{ color:'#b8d4e0', fontSize:14, lineHeight:1.8 }}>Adversarial prompts hit the shield and are deflected before they ever reach your model. Zero false negatives on known attack vectors.</p>
               <div style={{ marginTop:24, display:'flex', gap:12, alignItems:'center' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#ff2d55', boxShadow:'0 0 12px #ff2d55' }} />
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#ff2d55', letterSpacing:1.5 }}>BLOCKING THREATS IN REAL-TIME</span>
@@ -158,12 +162,12 @@ export default function HomePage() {
 
           {/* Scene 3: PII Scrubbing */}
           <div style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'flex-end', padding:'0 8vw' }} className="scene-3">
-            <div style={{ maxWidth:440, background:'rgba(8,12,18,0.75)', backdropFilter:'blur(20px)', border:'1px solid rgba(56,189,248,0.2)', borderRadius:20, padding:'40px 36px' }}>
+            <div style={{ maxWidth:440, background:'rgba(6,10,18,0.88)', backdropFilter:'blur(24px)', border:'1px solid rgba(56,189,248,0.35)', borderRadius:20, padding:'40px 36px', boxShadow:'0 8px 60px rgba(0,0,0,0.6)' }}>
               <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:3, color:'#38bdf8', marginBottom:16 }}>VIRIDANCE MODULE · SCENE 03</div>
-              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px' }}>
+              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px', textShadow:'0 2px 20px rgba(0,0,0,0.8)' }}>
                 Zero-Knowledge<br /><span style={{ color:'#38bdf8' }}>PII Scrubbing</span>
               </h2>
-              <p style={{ color:'#6b9aaa', fontSize:14, lineHeight:1.8 }}>Data packets stream through the shield, exit clean. API keys, emails, SSNs — detected and masked before leaving your infrastructure.</p>
+              <p style={{ color:'#b8d4e0', fontSize:14, lineHeight:1.8 }}>Data packets stream through the shield, exit clean. API keys, emails, SSNs — detected and masked before leaving your infrastructure.</p>
               <div style={{ marginTop:24, display:'flex', gap:12, alignItems:'center' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#38bdf8', boxShadow:'0 0 12px #38bdf8' }} />
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#38bdf8', letterSpacing:1.5 }}>40+ SECRET PATTERNS ACTIVE</span>
@@ -173,12 +177,12 @@ export default function HomePage() {
 
           {/* Scene 4: Agent Control */}
           <div style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'flex-start', padding:'0 8vw' }} className="scene-4">
-            <div style={{ maxWidth:440, background:'rgba(8,12,18,0.75)', backdropFilter:'blur(20px)', border:'1px solid rgba(255,170,0,0.2)', borderRadius:20, padding:'40px 36px' }}>
+            <div style={{ maxWidth:440, background:'rgba(6,10,18,0.88)', backdropFilter:'blur(24px)', border:'1px solid rgba(255,170,0,0.35)', borderRadius:20, padding:'40px 36px', boxShadow:'0 8px 60px rgba(0,0,0,0.6)' }}>
               <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:9, letterSpacing:3, color:'#ffaa00', marginBottom:16 }}>AGENT CONTROL · SCENE 04</div>
-              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px' }}>
+              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(24px,3vw,38px)', fontWeight:800, lineHeight:1.2, marginBottom:16, letterSpacing:'-0.5px', textShadow:'0 2px 20px rgba(0,0,0,0.8)' }}>
                 Permission<br /><span style={{ color:'#ffaa00' }}>Orbital Lock</span>
               </h2>
-              <p style={{ color:'#6b9aaa', fontSize:14, lineHeight:1.8 }}>Every AI agent is locked to exactly what it needs. Restricted actions enforced at the API layer — not just a policy document.</p>
+              <p style={{ color:'#b8d4e0', fontSize:14, lineHeight:1.8 }}>Every AI agent is locked to exactly what it needs. Restricted actions enforced at the API layer — not just a policy document.</p>
               <div style={{ marginTop:24, display:'flex', gap:12, alignItems:'center' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:'#ffaa00', boxShadow:'0 0 12px #ffaa00' }} />
                 <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#ffaa00', letterSpacing:1.5 }}>ZERO PRIVILEGE ESCALATION</span>
@@ -188,12 +192,16 @@ export default function HomePage() {
 
           {/* Scene 5: CTA / Shield reassembles */}
           <div style={{ position:'sticky', top:0, height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', textAlign:'center', padding:'0 32px' }} className="scene-5">
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#6b9aaa', letterSpacing:2.5, marginBottom:18 }}>FULLY PROTECTED</div>
-            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(28px,5vw,54px)', fontWeight:800, letterSpacing:'-1px', marginBottom:16, background:'linear-gradient(135deg, #38bdf8, #818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>Your AI stack, secured.</h2>
-            <p style={{ color:'#6b9aaa', fontSize:15, marginBottom:44, maxWidth:460 }}>No infrastructure changes. No employee retraining. Just an invisible shield around every AI call.</p>
-            <Link href="/workspace" className="hero-btn-primary" style={{ fontSize:15, padding:'16px 44px', pointerEvents:'auto', background:'linear-gradient(135deg,#38bdf8,#818cf8)', boxShadow:'0 0 40px rgba(56,189,248,0.3)' }}>
-              Launch Workspace →
-            </Link>
+            {/* Dark radial scrim */}
+            <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(6,10,20,0.75) 0%, rgba(6,10,20,0.15) 70%, transparent 100%)', pointerEvents:'none' }} />
+            <div style={{ position:'relative', display:'flex', flexDirection:'column', alignItems:'center' }}>
+              <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#7ecfea', letterSpacing:2.5, marginBottom:18 }}>FULLY PROTECTED</div>
+              <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(28px,5vw,54px)', fontWeight:800, letterSpacing:'-1px', marginBottom:16, background:'linear-gradient(135deg, #38bdf8, #818cf8)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', filter:'drop-shadow(0 0 20px rgba(56,189,248,0.5))' }}>Your AI stack, secured.</h2>
+              <p style={{ color:'#c8dfe8', fontSize:15, marginBottom:44, maxWidth:460, textShadow:'0 1px 20px rgba(0,0,0,0.9)', background:'rgba(6,10,20,0.5)', backdropFilter:'blur(4px)', borderRadius:10, padding:'10px 18px' }}>No infrastructure changes. No employee retraining. Just an invisible shield around every AI call.</p>
+              <Link href="/workspace" className="hero-btn-primary" style={{ fontSize:15, padding:'16px 44px', pointerEvents:'auto', background:'linear-gradient(135deg,#38bdf8,#818cf8)', boxShadow:'0 0 40px rgba(56,189,248,0.3)' }}>
+                Launch Workspace →
+              </Link>
+            </div>
           </div>
 
         </div>{/* end hero-scroll-container */}
