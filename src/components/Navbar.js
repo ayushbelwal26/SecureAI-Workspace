@@ -8,7 +8,6 @@ const NAV_LINKS = [
   { label: 'Guard',      href: '/'          },
   { label: 'Workspace',  href: '/workspace' },
   { label: 'Threats',    href: '/threats'   },
-  { label: 'Access',     href: '/access'    },
   { label: 'Analytics',  href: '/analytics' },
 ];
 

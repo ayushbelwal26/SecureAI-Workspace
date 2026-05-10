@@ -1,7 +1,5 @@
-import AccessPage from './AccessClient';
+import { notFound } from 'next/navigation';
 
-export const metadata = { title: 'Access Control' };
-
-export default function Page() {
-  return <AccessPage />;
+export default function AccessPage() {
+  return notFound();
 }

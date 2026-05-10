@@ -481,5 +481,82 @@
     "status": "REDACTED",
     "reason": "Redacted: Google API Key x1, Stripe Live Secret Key x1, Stripe Test Secret Key x1, Database URL x2 ...",
     "preview": "DATABASE_URL=[DB_URL_REDACTED]\nPOSTGRES_URL=[DB_URL_REDACTED"
+  },
+  {
+    "timestamp": "2026-05-10T10:38:46.707Z",
+    "layer": "ANOMALY_DETECTION",
+    "status": "PASSED",
+    "reason": "1 actions in current window",
+    "preview": "chat"
+  },
+  {
+    "timestamp": "2026-05-10T10:38:46.712Z",
+    "layer": "INPUT_ANALYSIS",
+    "status": "PASSED",
+    "reason": "Input passed all security checks (policy: BALANCED)",
+    "preview": "hi"
+  },
+  {
+    "timestamp": "2026-05-10T10:38:48.371Z",
+    "layer": "OUTPUT_ANALYSIS",
+    "status": "PASSED",
+    "reason": "No sensitive data detected",
+    "preview": "Hello! How can I help you today?"
+  },
+  {
+    "timestamp": "2026-05-10T11:01:26.201Z",
+    "layer": "FILE_SCANNER",
+    "status": "REDACTED",
+    "reason": "18 secret(s) redacted from \"sample (10).env\" (9 critical)",
+    "preview": "sample (10).env"
+  },
+  {
+    "timestamp": "2026-05-10T11:01:26.214Z",
+    "layer": "FILE_SCANNER",
+    "status": "REDACTED",
+    "reason": "18 secret(s) redacted from \"sample (10).env\" (9 critical)",
+    "preview": "sample (10).env"
+  },
+  {
+    "timestamp": "2026-05-10T11:01:39.239Z",
+    "layer": "ANOMALY_DETECTION",
+    "status": "PASSED",
+    "reason": "1 actions in current window",
+    "preview": "chat"
+  },
+  {
+    "timestamp": "2026-05-10T11:01:39.241Z",
+    "layer": "INPUT_ANALYSIS",
+    "status": "PASSED",
+    "reason": "Input passed all security checks (policy: BALANCED)",
+    "preview": "I have uploaded a file. Here is its exact content:\n\n# .env —"
+  },
+  {
+    "timestamp": "2026-05-10T11:01:41.283Z",
+    "layer": "OUTPUT_ANALYSIS",
+    "status": "REDACTED",
+    "reason": "Redacted: Google API Key x1, Stripe Live Secret Key x1, Stripe Test Secret Key x1, Database URL x2 ...",
+    "preview": "DATABASE_URL=[DB_URL_REDACTED]\nPOSTGRES_URL=[DB_URL_REDACTED"
+  },
+  {
+    "timestamp": "2026-05-10T11:02:01.671Z",
+    "layer": "ANOMALY_DETECTION",
+    "status": "PASSED",
+    "reason": "2 actions in current window",
+    "preview": "chat"
+  },
+  {
+    "timestamp": "2026-05-10T11:02:01.672Z",
+    "layer": "INPUT_ANALYSIS",
+    "status": "PASSED",
+    "reason": "Input passed all security checks (policy: BALANCED)",
+    "preview": "I have uploaded a file. Here is its exact content:\n\n# .env —"
+  },
+  {
+    "timestamp": "2026-05-10T11:02:03.082Z",
+    "layer": "OUTPUT_ANALYSIS",
+    "status": "REDACTED",
+    "reason": "Redacted: Google API Key x1, Stripe Live Secret Key x1, Stripe Test Secret Key x1, Database URL x2 ...",
+    "preview": "DATABASE_URL=[DB_URL_REDACTED]\nPOSTGRES_URL=[DB_URL_REDACTED"
   }
 ]

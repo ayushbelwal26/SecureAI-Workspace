@@ -310,13 +310,13 @@ export default function HomePage() {
         </section>
 
         {/* ── Compliance strip ── */}
-        <div style={{ maxWidth:900, margin:'0 auto 100px', padding:'0 32px' }}>
-          <div style={{ background:'rgba(0,255,136,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:14, padding:'24px 40px', display:'flex', alignItems:'center', gap:32, flexWrap:'wrap', justifyContent:'center' }}>
-            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:'#2a4a5a', letterSpacing:1 }}>COMPLIANCE READY</span>
+        <div style={{ maxWidth:900, margin:'0 auto 100px', padding:'0 32px', position:'relative', zIndex:10 }}>
+          <div style={{ background:'rgba(6,10,20,0.7)', backdropFilter:'blur(12px)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:14, padding:'24px 40px', display:'flex', alignItems:'center', gap:32, flexWrap:'wrap', justifyContent:'center', boxShadow:'0 8px 40px rgba(0,0,0,0.5)' }}>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:'#7e9cb3', letterSpacing:1 }}>COMPLIANCE READY</span>
             {['GDPR','SOC2','HIPAA','PCI-DSS'].map(c=>(
               <div key={c} style={{ display:'flex', alignItems:'center', gap:7 }}>
                 <span style={{ color:'#00ff88', fontSize:12 }}>✓</span>
-                <span style={{ fontSize:13, fontWeight:600, color:'#c8e8d8' }}>{c}</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'#e2edf5', textShadow:'0 2px 10px rgba(0,0,0,0.8)' }}>{c}</span>
               </div>
             ))}
           </div>
@@ -324,24 +324,24 @@ export default function HomePage() {
 
         {/* ── CTA ── */}
         <section className="cta-section" style={{ textAlign:'center', padding:'60px 32px 100px', borderTop:'1px solid rgba(255,255,255,0.04)', position:'relative' }}>
-          <div style={{ position:'absolute', top:'50%', left:'50%', transform:'translate(-50%,-50%)', width:600, height:300, background:'radial-gradient(ellipse, rgba(0,229,255,0.07) 0%, transparent 70%)', pointerEvents:'none' }} />
-          <div style={{ position:'relative' }}>
-            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#6b9aaa', letterSpacing:2.5, marginBottom:18 }}>GET STARTED</div>
-            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(26px,5vw,50px)', fontWeight:800, letterSpacing:'-1px', marginBottom:16 }}>Ready to secure your AI stack?</h2>
-            <p style={{ color:'#6b9aaa', fontSize:15, marginBottom:40 }}>No infrastructure changes. No employee retraining. Just protection.</p>
-            <Link href="/workspace" className="hero-btn-primary" style={{ fontSize:14, padding:'14px 40px' }}>
+          <div style={{ position:'absolute', inset:0, background:'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(6,10,20,0.85) 0%, rgba(6,10,20,0.2) 70%, transparent 100%)', pointerEvents:'none' }} />
+          <div style={{ position:'relative', zIndex:10 }}>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#7ecfea', letterSpacing:2.5, marginBottom:18 }}>GET STARTED</div>
+            <h2 style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:'clamp(26px,5vw,50px)', fontWeight:800, letterSpacing:'-1px', marginBottom:16, textShadow:'0 2px 20px rgba(0,0,0,0.8)' }}>Ready to secure your AI stack?</h2>
+            <p style={{ color:'#c8dfe8', fontSize:15, marginBottom:40, textShadow:'0 1px 15px rgba(0,0,0,0.9)' }}>No infrastructure changes. No employee retraining. Just protection.</p>
+            <Link href="/workspace" className="hero-btn-primary" style={{ fontSize:14, padding:'14px 40px', boxShadow:'0 0 30px rgba(0,229,255,0.3)' }}>
               Launch Workspace →
             </Link>
           </div>
         </section>
 
         {/* ── Footer ── */}
-        <footer style={{ textAlign:'center', padding:'20px 32px', borderTop:'1px solid rgba(255,255,255,0.04)', fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#2a4a5a', letterSpacing:1 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8, maxWidth:900, margin:'0 auto' }}>
+        <footer style={{ textAlign:'center', padding:'20px 32px', borderTop:'1px solid rgba(255,255,255,0.1)', fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:'#7e9cb3', letterSpacing:1, position:'relative', background:'rgba(6,10,20,0.85)', backdropFilter:'blur(10px)' }}>
+          <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8, maxWidth:900, margin:'0 auto', position:'relative', zIndex:10 }}>
             <span>© 2024 SECUREAI PLATFORM. ALL RIGHTS RESERVED. SOC2 TYPE II CERTIFIED.</span>
             <div style={{ display:'flex', gap:24 }}>
               {['Security Policy','Blog','Docs','Enterprise'].map(l=>(
-                <Link key={l} href="#" style={{ color:'#2a4a5a', textDecoration:'none', transition:'color .2s' }}
+                <Link key={l} href="#" style={{ color:'#b8d4e0', textDecoration:'none', transition:'color .2s' }}
                   onMouseEnter={undefined}>{l}</Link>
               ))}
             </div>

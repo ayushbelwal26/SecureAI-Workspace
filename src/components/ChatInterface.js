@@ -6,6 +6,13 @@ function generateSessionId() {
   return 'sess-' + Math.random().toString(36).slice(2, 11) + '-' + Date.now();
 }
 
+const STORAGE_KEY = 'secureai_chat_v1';
+
+function readStorage() {
+  if (typeof window === 'undefined') return {};
+  try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+}
+
 const THREAT_COLORS = {
   SAFE: '#00e5ff',
   MEDIUM: '#ffd600',
@@ -35,7 +42,7 @@ export default function ChatInterface({
   onClearContext,
   attackReplayRequest = null,
 }) {
-  const [messages, setMessages] = useState([
+  const INIT_MSG = [
     {
       id: 'init',
       role: 'system',
@@ -44,25 +51,41 @@ export default function ChatInterface({
       status: 'SYSTEM',
       threatLevel: 'SAFE',
     },
-  ]);
+  ];
+
+  const [messages, setMessages] = useState(() => {
+    const saved = readStorage();
+    return saved.messages?.length ? saved.messages : INIT_MSG;
+  });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState('');
+  const [sessionId, setSessionId] = useState(() => readStorage().sessionId || '');
   const [isMounted, setIsMounted] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(MODELS[0].id);
+  const [selectedModel, setSelectedModel] = useState(() => readStorage().selectedModel || MODELS[0].id);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
-  const [creditStats, setCreditStats] = useState(null);
-  const [sessionTokens, setSessionTokens] = useState(0);
-  const [securityPolicy, setSecurityPolicy] = useState('BALANCED');
-  const [shadowMode, setShadowMode] = useState(false);
+  const [creditStats, setCreditStats] = useState(() => readStorage().creditStats || null);
+  const [sessionTokens, setSessionTokens] = useState(() => readStorage().sessionTokens || 0);
+  const [securityPolicy, setSecurityPolicy] = useState(() => readStorage().securityPolicy || 'BALANCED');
+  const [shadowMode, setShadowMode] = useState(() => readStorage().shadowMode || false);
   const [lastShadow, setLastShadow] = useState(null);
   const bottomRef = useRef(null);
   const dropdownRef = useRef(null);
   const lastReplayIdRef = useRef('');
 
+  // Persist state to sessionStorage (clears on tab close, survives navigation)
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        messages, sessionId, selectedModel, creditStats, sessionTokens, securityPolicy, shadowMode,
+      }));
+    } catch {}
+  }, [messages, sessionId, selectedModel, creditStats, sessionTokens, securityPolicy, shadowMode, isMounted]);
+
   useEffect(() => {
     setIsMounted(true);
-    setSessionId('sess-' + Math.random().toString(36).slice(2, 9));
+    // Generate sessionId only if not already persisted
+    setSessionId(id => id || 'sess-' + Math.random().toString(36).slice(2, 9));
   }, []);
 
   useEffect(() => {
@@ -269,6 +292,15 @@ export default function ChatInterface({
     }
   };
 
+  const handleClearChat = () => {
+    if (!window.confirm('Clear all chat history?')) return;
+    try { sessionStorage.removeItem(STORAGE_KEY); } catch {}
+    setMessages(INIT_MSG);
+    setSessionTokens(0);
+    setCreditStats(null);
+    setLastShadow(null);
+  };
+
   return (
     <div
       style={{
@@ -396,6 +428,32 @@ export default function ChatInterface({
             {sessionTokens.toLocaleString()} <span style={{ color: '#4a6880', fontWeight: 400 }}>/ {creditStats ? Number(creditStats.totalCredits).toLocaleString() : '50,000'}</span>
           </span>
         </div>
+
+        {/* Clear Chat */}
+        <button
+          type="button"
+          onClick={handleClearChat}
+          title="Clear chat history"
+          style={{
+            marginLeft: '8px',
+            display: 'flex', alignItems: 'center', gap: '4px',
+            background: 'rgba(255,45,85,0.07)',
+            border: '1px solid rgba(255,45,85,0.22)',
+            borderRadius: '6px',
+            color: '#ff6b8a',
+            fontSize: '10px',
+            fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: '0.5px',
+            padding: '4px 9px',
+            cursor: 'pointer',
+            fontWeight: 700,
+            transition: 'all 0.18s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,45,85,0.14)'; e.currentTarget.style.borderColor = 'rgba(255,45,85,0.45)'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,45,85,0.07)'; e.currentTarget.style.borderColor = 'rgba(255,45,85,0.22)'; }}
+        >
+          🗑 CLEAR
+        </button>
       </div>
 
       {/* Messages */}
@@ -675,12 +733,14 @@ export default function ChatInterface({
 }
 
 function EgressProofPanel({ shadow }) {
+  const [expanded, setExpanded] = useState(false);
   const mono = { fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', wordBreak: 'break-all' };
   return (
     <div
       style={{
         flexShrink: 0,
-        maxHeight: '200px',
+        maxHeight: expanded ? '400px' : '200px',
+        transition: 'max-height 0.3s ease',
         overflowY: 'auto',
         padding: '10px 18px',
         borderTop: '1px solid rgba(167,139,250,0.25)',
@@ -743,39 +803,55 @@ function EgressProofPanel({ shadow }) {
             </div>
           )}
           <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: '1fr 1fr' }}>
-            <div>
-              <span style={{ color: '#64748b', fontSize: '9px' }}>Raw preview</span>
+            <div 
+              onClick={() => setExpanded(!expanded)} 
+              style={{ cursor: 'pointer', position: 'relative' }}
+              title="Click to expand/collapse"
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '9px' }}>Raw preview</span>
+                <span style={{ color: '#64748b', fontSize: '8px' }}>{expanded ? '▲ COLLAPSE' : '▼ EXPAND'}</span>
+              </div>
               <pre
                 style={{
                   ...mono,
                   color: '#cbd5e1',
                   margin: '4px 0 0',
                   whiteSpace: 'pre-wrap',
-                  maxHeight: '72px',
+                  maxHeight: expanded ? 'none' : '72px',
                   overflow: 'hidden',
                   background: 'rgba(0,0,0,0.25)',
                   padding: '6px',
                   borderRadius: '6px',
                   border: '1px solid rgba(255,255,255,0.06)',
+                  transition: 'max-height 0.3s ease',
                 }}
               >
                 {shadow.egress.rawPreview || '—'}
               </pre>
             </div>
-            <div>
-              <span style={{ color: '#64748b', fontSize: '9px' }}>Protected preview</span>
+            <div 
+              onClick={() => setExpanded(!expanded)} 
+              style={{ cursor: 'pointer', position: 'relative' }}
+              title="Click to expand/collapse"
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#64748b', fontSize: '9px' }}>Protected preview</span>
+                <span style={{ color: '#64748b', fontSize: '8px' }}>{expanded ? '▲ COLLAPSE' : '▼ EXPAND'}</span>
+              </div>
               <pre
                 style={{
                   ...mono,
                   color: '#a7f3d0',
                   margin: '4px 0 0',
                   whiteSpace: 'pre-wrap',
-                  maxHeight: '72px',
+                  maxHeight: expanded ? 'none' : '72px',
                   overflow: 'hidden',
                   background: 'rgba(0,0,0,0.25)',
                   padding: '6px',
                   borderRadius: '6px',
                   border: '1px solid rgba(52,211,153,0.15)',
+                  transition: 'max-height 0.3s ease',
                 }}
               >
                 {shadow.egress.protectedPreview || '—'}
