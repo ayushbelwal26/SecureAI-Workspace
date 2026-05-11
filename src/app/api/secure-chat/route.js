@@ -264,14 +264,22 @@ export async function POST(request) {
     const text = grokData.choices?.[0]?.message?.content ?? '';
     const credits = await fetchCreditSnapshot(apiKey);
 
-    // ── Layer 4: Output analysis ────────────────────────────────────────
-    const { egressSource, rawProvenance } = resolveEgressSource(text, bodyVerbatimFile);
-    const outputCheck = middleware.analyzeOutput(egressSource);
-    const protectedText = outputCheck.clean ? egressSource : outputCheck.redacted;
+    // ── Layer 4: Output analysis — always run on the model's actual reply ──
+    const outputCheck = middleware.analyzeOutput(text);
+    const protectedText = outputCheck.clean ? text : outputCheck.redacted;
     const totalSecretMatches = outputCheck.flagged.reduce(
       (acc, f) => acc + (f.count || 0),
       0
     );
+
+    // Shadow mode: resolve egress source separately (for audit proof only)
+    let shadowEgressSource = text;
+    let rawProvenance = 'model';
+    if (shadowMode && bodyVerbatimFile) {
+      const resolved = resolveEgressSource(text, bodyVerbatimFile);
+      shadowEgressSource = resolved.egressSource;
+      rawProvenance = resolved.rawProvenance;
+    }
 
     const body = {
       blocked: false,
@@ -284,8 +292,10 @@ export async function POST(request) {
     };
 
     if (shadowMode) {
-      const raw = String(egressSource ?? '');
-      const prot = String(protectedText ?? '');
+      const raw = String(shadowEgressSource ?? '');
+      const prot = String(rawProvenance === 'uploaded-file'
+        ? middleware.analyzeOutput(shadowEgressSource).redacted || raw
+        : protectedText ?? '');
       const rawDigest = sha256Utf8(raw);
       const protectedDigest = sha256Utf8(prot);
       body.shadow = {
@@ -306,7 +316,7 @@ export async function POST(request) {
         },
         assertion:
           rawProvenance === 'uploaded-file'
-            ? 'Model reply had no detectable secret patterns; raw column shows verbatim lines from your upload — scrubbing applied on that text before display.'
+            ? 'Shadow audit: raw column shows verbatim secret lines from your upload — demonstrating what egress scrubbing intercepts.'
             : rawDigest === protectedDigest
               ? 'Egress unchanged: raw and protected digests match.'
               : 'Egress modified: scrubbing applied; digests differ.',
