@@ -2,6 +2,40 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+// Cryptographic client-side SHA-256 using browser Web Crypto API
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Client-side Merkle Tree Root solver (replicating the server calculations)
+async function computeClientMerkleRoot(logArray) {
+  if (logArray.length === 0) return '';
+  let level = [];
+  for (const log of logArray) {
+    const cleanLog = { ...log };
+    delete cleanLog.merkleRoot;
+    delete cleanLog.proof;
+    delete cleanLog.hash;
+    const h = await sha256(JSON.stringify(cleanLog));
+    level.push(h);
+  }
+  while (level.length > 1) {
+    const nextLevel = [];
+    for (let i = 0; i < level.length; i += 2) {
+      const left = level[i];
+      const right = i + 1 < level.length ? level[i + 1] : left;
+      const h = await sha256(left + right);
+      nextLevel.push(h);
+    }
+    level = nextLevel;
+  }
+  return level[0] || '';
+}
+
+
 const STATUS_STYLES = {
   BLOCKED:  { bg: 'rgba(213,0,0,0.14)',   border: 'rgba(213,0,0,0.45)',   text: '#ff5252', dot: '#d50000', leftGlow: '#d50000', label: 'THREAT STOPPED'      },
   PASSED:   { bg: 'rgba(0,230,118,0.08)', border: 'rgba(0,230,118,0.25)', text: '#00e676', dot: '#00e676', leftGlow: '#00e676', label: 'PROTECTED'            },
@@ -76,7 +110,10 @@ export default function SecurityDashboard() {
   const [isLive,    setIsLive]    = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   const [selectedLogIndex, setSelectedLogIndex] = useState(0);
+  const [merkleStatus, setMerkleStatus] = useState(null);
+  const [clientRoot, setClientRoot] = useState('');
   const tableRef    = useRef(null);
+
   const intervalRef = useRef(null);
   const streamRef   = useRef(null);
 
@@ -112,7 +149,32 @@ export default function SecurityDashboard() {
   useEffect(() => { fetchLogs(); }, []);
   useEffect(() => {
     setSelectedLogIndex(0);
+    setMerkleStatus(null);
   }, [logs.length]);
+
+  const verifyAuditLogs = async () => {
+    if (logs.length === 0) return;
+    setMerkleStatus('verifying');
+    try {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      // Re-align logs to chronological order (oldest first) as hashed on server
+      const chronologicalLogs = [...logs].reverse();
+      const calculatedRoot = await computeClientMerkleRoot(chronologicalLogs);
+      
+      const serverRoot = logs[0]?.merkleRoot;
+      setClientRoot(calculatedRoot);
+      
+      if (serverRoot && calculatedRoot === serverRoot) {
+        setMerkleStatus('valid');
+      } else {
+        setMerkleStatus('invalid');
+      }
+    } catch (err) {
+      console.error('Audit verification error:', err);
+      setMerkleStatus('invalid');
+    }
+  };
+
 
   useEffect(() => {
     const stopFallback = () => clearInterval(intervalRef.current);
@@ -277,6 +339,57 @@ export default function SecurityDashboard() {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── Verifiable Audit Chain ── */}
+      <div style={{
+        padding: '10px 18px',
+        background: '#070e18',
+        borderBottom: '1px solid #0d1826',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '10px',
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: '200px' }}>
+          <div style={{ fontSize: '9px', color: '#00e5ff', letterSpacing: '1.5px', fontWeight: 700 }}>
+            🔗 TAMPER-PROOF AUDIT CHAIN (MERKLE TREE)
+          </div>
+          <div style={{ fontSize: '10px', color: '#6b8aa3', wordBreak: 'break-all', fontFamily: "'Courier New', monospace" }}>
+            {logs.length > 0 ? (logs[0].merkleRoot ? `Root: ${logs[0].merkleRoot.slice(0, 32)}...` : 'Generating audit chain...') : 'No audit chain generated yet.'}
+          </div>
+        </div>
+        <div>
+          <button
+            onClick={verifyAuditLogs}
+            disabled={logs.length === 0}
+            style={{
+              background: merkleStatus === 'valid' ? 'rgba(0,230,118,0.1)' 
+                        : merkleStatus === 'invalid' ? 'rgba(213,0,0,0.1)' 
+                        : 'rgba(0,229,255,0.08)',
+              border: `1px solid ${merkleStatus === 'valid' ? 'rgba(0,230,118,0.3)' 
+                        : merkleStatus === 'invalid' ? 'rgba(213,0,0,0.3)' 
+                        : 'rgba(0,229,255,0.25)'}`,
+              borderRadius: '6px',
+              color: merkleStatus === 'valid' ? '#00e676' 
+                     : merkleStatus === 'invalid' ? '#ff5252' 
+                     : '#00e5ff',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: '9px',
+              padding: '5px 10px',
+              cursor: logs.length === 0 ? 'not-allowed' : 'pointer',
+              fontWeight: 700,
+              letterSpacing: '1px',
+              transition: 'all 0.2s',
+            }}
+          >
+            {merkleStatus === 'verifying' ? 'VERIFYING...' 
+             : merkleStatus === 'valid' ? '✓ ROOT VALIDATED' 
+             : merkleStatus === 'invalid' ? '❌ CHAIN CORRUPTED' 
+             : 'VERIFY LOG INTEGRITY'}
+          </button>
+        </div>
       </div>
 
       {/* ── Log list ── */}
