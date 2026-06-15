@@ -247,6 +247,22 @@ function AgentCard({ agentKey, profile, isMobile }) {
                   : result.reason || 'Action is restricted for this agent'
                 }
               </div>
+              {result.token && (
+                <div style={{
+                  marginTop: '6px',
+                  padding: '4px 8px',
+                  borderRadius: '4px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  fontSize: '9px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: '#4a7fa5',
+                  wordBreak: 'break-all',
+                }}>
+                  <span style={{ color: '#00e5ff', fontWeight: 'bold' }}>ARMORIQ INTENT TOKEN: </span>
+                  {result.token}
+                </div>
+              )}
             </div>
           </div>
         )}
