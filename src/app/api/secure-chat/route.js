@@ -2,6 +2,8 @@ import { createHash } from 'crypto';
 import { NextResponse } from 'next/server';
 import { SECRET_PATTERNS } from '@/lib/patterns';
 import SecurityMiddleware from '@/lib/SecurityMiddleware';
+import { ArmorIQClient } from '@armoriq/sdk';
+
 
 function sha256Utf8(s) {
   return createHash('sha256').update(s ?? '', 'utf8').digest('hex');
@@ -281,6 +283,30 @@ export async function POST(request) {
       rawProvenance = resolved.rawProvenance;
     }
 
+    // ── Layer 5: ArmorIQ Intent Audit ──
+    const armoriqClient = new ArmorIQClient({
+      apiKey: process.env.ARMORIQ_API_KEY,
+      userId: process.env.ARMORIQ_USER_ID || 'user_hackathon_demo',
+      agentId: process.env.ARMORIQ_AGENT_ID,
+    });
+
+    let chatToken = 'chat-token-mock';
+    try {
+      const plan = {
+        goal: `Answer chat query`,
+        steps: [
+          {
+            action: 'llm_generate',
+            tool: selectedModel,
+            inputs: { message: message.slice(0, 100) },
+          },
+        ],
+      };
+      const planCapture = armoriqClient.capturePlan(selectedModel, `User Query`, plan);
+      const rawToken = await armoriqClient.getIntentToken(planCapture);
+      chatToken = typeof rawToken === 'string' ? rawToken : JSON.stringify(rawToken);
+    } catch (_) {}
+
     const body = {
       blocked: false,
       response: protectedText,
@@ -289,6 +315,7 @@ export async function POST(request) {
       securityLog: middleware.getLogs(),
       usage: grokData.usage || { total_tokens: 0, prompt_tokens: 0, completion_tokens: 0 },
       credits,
+      intentToken: chatToken,
     };
 
     if (shadowMode) {

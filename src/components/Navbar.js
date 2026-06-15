@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { label: 'Workspace',  href: '/workspace' },
   { label: 'Threats',    href: '/threats'   },
   { label: 'Analytics',  href: '/analytics' },
+  { label: 'Access',     href: '/access'    },
 ];
 
 export default function Navbar() {
