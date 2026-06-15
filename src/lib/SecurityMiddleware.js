@@ -1,6 +1,8 @@
 import { SECRET_PATTERNS } from '@/lib/patterns';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
+import { MerkleTree } from './MerkleTree';
+
 
 // Module-level log accumulator — persists across requests in the same server process
 const LOG_DIR = path.join(process.cwd(), '.data');
@@ -273,6 +275,16 @@ class SecurityMiddleware {
     if (this.logs.length > 500) {
       this.logs.splice(0, this.logs.length - 500);
     }
+
+    try {
+      const tree = new MerkleTree(this.logs);
+      const root = tree.getRoot();
+      this.logs.forEach((logEntry, idx) => {
+        logEntry.merkleRoot = root;
+        logEntry.proof = tree.getProof(idx);
+      });
+    } catch (_) {}
+
     persistLogs(this.logs);
   }
 
